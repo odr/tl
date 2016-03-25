@@ -15,35 +15,39 @@ spec = describe "Simple rendering" $ do
     describe "For output-only values" $ do
         it "render Int" $ do
             renderText (toHtml (Tagged 1 :: Tagged Simple Int))
-                `shouldBe` renderText ("1" :: Html ())
+                `shouldBe` "1"
         it "render Integer" $ do
             renderText (toHtml (Tagged 12345678901234567890 :: Tagged Simple Integer))
-                `shouldBe` renderText ("12345678901234567890" :: Html ())
+                `shouldBe` "12345678901234567890"
         it "render Float" $ do
             renderText (toHtml (Tagged 1 :: Tagged Simple Float))
-                `shouldBe` renderText ("1.0" :: Html ())
+                `shouldBe` "1.0"
         it "render Double" $ do
             renderText (toHtml (Tagged 1 :: Tagged Simple Double))
-                `shouldBe` renderText ("1.0" :: Html ())
+                `shouldBe` "1.0"
         it "render String" $ do
             renderText (toHtml (Tagged "русский язык" :: Tagged Simple String))
-                `shouldBe` renderText ("русский язык" :: Html ())
+                `shouldBe` "русский язык"
         it "render Text" $ do
             renderText (toHtml (Tagged "עברית" :: Tagged Simple Text))
-                `shouldBe` renderText ("עברית" :: Html ())
+                `shouldBe` "עברית"
         context "with Maybe a" $ do
             it "render having value" $ do
                 renderText (toHtml (Tagged (Just 1) :: Tagged Simple (Maybe Int)))
-                    `shouldBe` renderText ("1" :: Html ())
+                    `shouldBe` "1"
             it "render having no value" $ do
                 renderText (toHtml (Tagged Nothing :: Tagged Simple (Maybe Text)))
-                    `shouldBe` renderText ("" :: Html ())
+                    `shouldBe` ""
         context "when rendering Bool" $ do
             it "rendered as '+' for 'True'" $ do
                 renderText (toHtml (Tagged True :: Tagged Simple Bool)) `shouldBe` "+"
             it "rendered as '-' for 'False'" $ do
                 renderText (toHtml (Tagged False :: Tagged Simple Bool)) `shouldBe` "-"
-    describe "Rendering for Input" $ do
+        it "render Symbol as Text: Tagged '(Simple, n::Symbol) ()" $ do
+            renderText (toHtml (Tagged () :: Tagged '(Simple, "test") ()))
+                `shouldBe` "test"
+
+    describe "Rendering for Input: (Simple, Input ias)" $ do
         it "render Maybe Num as number" $ do
             renderText (toHtml (Tagged (Just 1) :: Tagged '(Simple, Input '[]) (Maybe Int)))
                 `shouldBe` "<input value=\"1\" type=\"number\">"
@@ -68,7 +72,7 @@ spec = describe "Simple rendering" $ do
             it "added readonly to input field" $ do
                 renderText (toHtml (Tagged 1 :: Tagged '(Simple, Input '[ReadOnly]) Float))
                     `shouldBe` "<input value=\"1.0\" type=\"number\" readonly>"
-    describe "Rendering for Choose value" $ do
+    describe "Rendering for Choose value: (Simple, Choose vts ias)" $ do
         it "render type Choose with list of (value, text) pair as listbox (select tag)" $ do
             renderText (toHtml (Tagged Nothing :: Tagged
                 '(Simple, Choose '[ '("1","One"),'("2","Two")] '[]) (Maybe Int)))
@@ -81,7 +85,20 @@ spec = describe "Simple rendering" $ do
             renderText (toHtml (Tagged (Just 2) :: Tagged
                 '(Simple, Choose '[ '("1","One"),'("2","Two")] '[ReadOnly]) (Maybe Int)))
                 `shouldBe` "<select disabled><option value=\"1\">One</option><option value=\"2\" selected>Two</option></select>"
-
+    describe "Rendering with label: (Simple, l::Symbol, t::HtmlTag)" $ do
+        it "render field into label" $ do
+            renderText (toHtml (Tagged (Just "test") :: Tagged '(Simple, "test", Input '[]) (Maybe Text)))
+                `shouldBe` "<label>test: <input value=\"test\"></label>"
+            renderText (toHtml (Tagged (Just 2) :: Tagged
+                '(Simple, "test", Choose '[ '("1","One"),'("2","Two")] '[ReadOnly]) (Maybe Int)))
+                `shouldBe` "<label>test: <select disabled><option value=\"1\">One</option><option value=\"2\" selected>Two</option></select></label>"
+    describe "Rendering as table row: (Simple, (l::Symbol, t::HtmlTag))" $ do
+        it "render table row" $ do
+            renderText (toHtml (Tagged (Just "test") :: Tagged '(Simple, '("test", Input '[])) (Maybe Text)))
+                `shouldBe` "<tr><td>test: </td><td><input value=\"test\"></td></tr>"
+            renderText (toHtml (Tagged (Just 2) :: Tagged
+                '(Simple, '("test", Choose '[ '("1","One"),'("2","Two")] '[ReadOnly])) (Maybe Int)))
+                `shouldBe` "<tr><td>test: </td><td><select disabled><option value=\"1\">One</option><option value=\"2\" selected>Two</option></select></td></tr>"
 
 -- renderText (toHtml (Tagged (Just 3)
 --        :: Tagged '(Simple, "test", Choose '[ '("a","aaa"), '("b", "bbb")] '[ReadOnly])

@@ -41,6 +41,15 @@ instance ToHtml (Tagged Simple a) => ToHtml (Maybe (Tagged Simple a))
     toHtml    = maybe (toHtml    (""::T.Text)) toHtml
     toHtmlRaw = maybe (toHtmlRaw (""::T.Text)) toHtmlRaw
 
+instance KnownSymbol n => ToHtml (TN n) where
+    toHtml _  = fromString $ symbolVal' (proxy# :: Proxy# n)
+    toHtmlRaw = toHtml
+
+type TN (n::Symbol) = Tagged '(Simple,n) ()
+type THV (h :: HtmlTag) v = Tagged '(Simple, h) v
+type TNHV (n :: Symbol) (h :: HtmlTag) v = Tagged '(Simple, n, h) v
+type T_NHV (n :: Symbol) (h :: HtmlTag) v = Tagged '(Simple, '(n, h)) v
+
 type RPTI as a    = Tagged '(Simple, Input as    ) (Maybe a)
 type RPTC vs ps a = Tagged '(Simple, Choose vs ps) (Maybe a)
 
@@ -99,14 +108,18 @@ instance {-# OVERLAPPABLE #-} ToHtml (THV h (Maybe v)) => ToHtml (THV h v) where
     toHtml = toHtml . fmap Just
     toHtmlRaw = toHtml
 
-type THV (h :: HtmlTag) v = Tagged '(Simple, h) v
-type TNHV (n :: Symbol) (h :: HtmlTag) v = Tagged '(Simple, n, h) v
-
-instance (ToHtml (THV h v), KnownSymbol n) => ToHtml (TNHV n h v)
+----------------
+instance (ToHtml (THV h v), ToHtml (TN n)) => ToHtml (TNHV n h v)
   where
-    toHtml x = div_ $ do
-        label_ (fromString $ symbolVal' (proxy# :: Proxy# n) ++ ": ")
+    toHtml x = label_ $ do
+        toHtml (Tagged () :: TN n) >> ": "
         toHtml (retag x :: THV h v)
     toHtmlRaw = toHtml
 
+instance (ToHtml (THV h v), ToHtml (TN n)) => ToHtml (T_NHV n h v)
+  where
+    toHtml x = tr_ $ do
+        td_ $ toHtml (Tagged () :: TN n) >> ": "
+        td_ $ toHtml (retag x :: THV h v)
+    toHtmlRaw = toHtml
 
