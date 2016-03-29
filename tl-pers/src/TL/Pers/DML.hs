@@ -85,13 +85,13 @@ class   ( TableLike a
 
 -- | Select values by condition
 sel (_::Proxy '(rep, a))
-    = selProj (Proxy :: Proxy '(rep,a,NRec (RecordDef a)))
+    = selProj (Proxy :: Proxy '(rep,a,LFst (RecordDef a)))
 
 upsert (p :: Proxy '(rep,a)) (xs::[ar]) = do
     res <- upd p xs
     ins p $ filter (\x -> not $ (x ^. lensPk p) `elem` res) xs
 
-insRecCmd :: (KnownSymbol t, Names (NRec r), DBOption back)
+insRecCmd :: (KnownSymbol t, Names (LFst r), DBOption back)
     => Proxy '(rep,back,t,r) -> Text
 insRecCmd (_ :: Proxy '(rep,back,t,r))
     = format "INSERT INTO {} ({}) VALUES({})"
@@ -102,11 +102,11 @@ insRecCmd (_ :: Proxy '(rep,back,t,r))
                         [1..] ns
         )
   where
-    ns = names (proxy# :: Proxy# (NRec r))
+    ns = names (proxy# :: Proxy# (LFst r))
 
 insRecCmdPars ::    ( KnownSymbol t
                     , RowRepDDL rep back r rr
-                    , Names (NRec r)
+                    , Names (LFst r)
                     , DBOption back
                     )
                     => Proxy '(rep,back,t,r) -> [rr] -> (Text, [[FieldDB back]])
@@ -120,8 +120,8 @@ updRecCmdPars
         , RecLens rep (RecordDef t) (Key t) s br
         , RecLens rep (RecordDef t) (DataKey t) s ar
         , Names (KeyDef t)
-        , Names (NRec (DataKey t))
-        , Names (NRec (DataRecord t))
+        , Names (LFst (DataKey t))
+        , Names (LFst (DataRecord t))
         , RowRepDDL rep back (Key t) br
         , RowRepDDL rep back (DataKey t) ar
         , DBOption back
@@ -142,7 +142,7 @@ updRecCmdPars (proxy :: Proxy '(rep,back,t)) recs@(rec:_)
         , map dataKey recs
         )
   where
-    ns = names (proxy# :: Proxy# (NRec (DataRecord t)))
+    ns = names (proxy# :: Proxy# (LFst (DataRecord t)))
     (w,_,_) = runRWS (sqlWhere $ cond key) () (length ns + 1)
       where
         cond r = Equal (Proxy :: Proxy (KeyDef t)) r :: Cond rep back (RecordDef t)

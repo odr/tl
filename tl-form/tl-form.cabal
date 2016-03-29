@@ -22,7 +22,9 @@ library
                         , text
                         , tagged
                         , ghc-prim
+                        , transformers
                         , tl-base
+                        , safe
 
   default-language:    Haskell2010
 

@@ -96,12 +96,16 @@ type family VRec' (a :: [(k,*)]) :: [*] where
     VRec' ('(a,b) ': xs) = b ': VRec' xs
 
 
-type family NRec (a :: [(k1,k2)]) :: [k1] where
-    NRec '[] = '[]
-    NRec ('(a,b) ': xs) = a ': NRec xs
+type family LFst (a :: [(k1,k2)]) :: [k1] where
+    LFst '[] = '[]
+    LFst ('(a,b) ': xs) = a ': LFst xs
 
-pNRec :: Proxy a -> Proxy (NRec a)
-pNRec (_::Proxy a) = Proxy :: Proxy (NRec a)
+type family LSnd (a :: [(k1,k2)]) :: [ks] where
+    LSnd '[] = '[]
+    LSnd ('(a,b) ': xs) = b ': LSnd xs
+
+pLFst :: Proxy a -> Proxy (LFst a)
+pLFst (_::Proxy a) = Proxy :: Proxy (LFst a)
 
 type family ContainNames (a :: [(k,k2)]) (b :: [k]) :: Constraint where
     ContainNames as '[] = ()

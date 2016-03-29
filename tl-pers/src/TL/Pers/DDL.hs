@@ -159,7 +159,7 @@ instance RowRepDDL Plain b ('[]) () where
 instance    ( FieldDDL b v
             , KnownSymbol n
             , RowRepDDL Plain b nvs vr
-            , Names (NRec nvs)
+            , Names (LFst nvs)
             )
     => RowRepDDL Plain b ((n ::: v) ': nvs) (v,vr)
   where
@@ -167,7 +167,7 @@ instance    ( FieldDDL b v
                          . toRowDb prb (Proxy :: Proxy nvs) vs
     fromRowDb prb (_ :: Proxy ((n ::: v) ': nvs)) fs
         = case fs of
-            []      -> Left $ symbols (proxy# :: Proxy# (n ': NRec nvs))
+            []      -> Left $ symbols (proxy# :: Proxy# (n ': LFst nvs))
             (f:fs)  -> case fromRowDb prb (Proxy :: Proxy nvs) fs of
                 Left ss -> either (Left . (:ss)) (\_ -> Left ss) $ rh f
                 Right r -> either (Left . (:[])) (\x -> Right (x,r)) $ rh f

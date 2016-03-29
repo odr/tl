@@ -127,17 +127,17 @@ runSqliteDDL cmd = do
 type instance IsAutoPK rep Sqlite kr = kr ~ Singl rep Int64
 type instance IsAutoPKb rep Sqlite kr = kr == Singl rep Int64
 
-instance    ( Names (NRec a)
+instance    ( Names (LFst a)
             , KnownSymbol n
             , Single rep
             , ContainNames a pk
             , RecLens rep a (ProjNames a pk) ar kr
-            , Names (NRec (MinusNames a pk))
+            , Names (LFst (MinusNames a pk))
             , Names pk
             , RowRepDDL rep Sqlite a ar
             , RowRepDDL rep Sqlite (ProjNames a pk) kr
             , RowRepDDL rep Sqlite (MinusNames a pk) dr
-            , Names (NRec (DataKeyDef a pk))
+            , Names (LFst (DataKeyDef a pk))
             , Rep rep (DataKeyDef a pk) ar'
             , RecLens rep a (DataKeyDef a pk) ar ar'
             , RowRepDDL rep Sqlite (DataKeyDef a pk) ar'
