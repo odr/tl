@@ -24,253 +24,210 @@ import TL.Form.Types
 data Simple
 
 --------------- output-only values ------------------
-instance {-# OVERLAPPABLE #-} ToHtmlText a => ToHtml (Tagged Simple a) where
-    toHtml      = toHtml    . untag . fmap toHtmlText
-    toHtmlRaw   = toHtmlRaw . untag . fmap toHtmlText
+instance {-# OVERLAPPABLE #-} ToHtmlText a => ToTLF (Tagged Simple a) where
+    toTLF = toHtml . untag . fmap toHtmlText
 
-instance {-# OVERLAPPING #-} ToHtml (Tagged Simple Bool) where
-    toHtml    (Tagged b) = toHtml    (if b then "+" else "-" :: T.Text)
-    toHtmlRaw (Tagged b) = toHtmlRaw (if b then "+" else "-" :: T.Text)
+instance {-# OVERLAPPING #-} ToTLF (Tagged Simple Bool) where
+    toTLF (Tagged b) = toHtml (if b then "+" else "-" :: T.Text)
 
-instance {-# OVERLAPPING #-} (ToHtml (Tagged Simple a))
-    => ToHtml (Tagged Simple (Maybe a))
+instance {-# OVERLAPPING #-} (ToTLF (Tagged Simple a))
+    => ToTLF (Tagged Simple (Maybe a))
   where
-    toHtml    = toHtml    . sequence
-    toHtmlRaw = toHtmlRaw . sequence
+    toTLF = toTLF . sequence
 
-instance {-# OVERLAPPING #-} (ToHtml (Tagged Simple a), ToHtml (Tagged Simple as))
-    => ToHtml (Tagged Simple (a,as))
+instance {-# OVERLAPPING #-} (ToTLF (Tagged Simple a), ToTLF (Tagged Simple as))
+    => ToTLF (Tagged Simple (a,as))
   where
-    toHtml x = do
-        td_ $ toHtml $ fmap fst x
-        toHtml $ fmap snd x
-    toHtmlRaw = toHtml
+    toTLF x = do
+        td_ $ toTLF $ fmap fst x
+        toTLF $ fmap snd x
 
-instance ToHtml (Tagged Simple a) => ToHtml (Maybe (Tagged Simple a))
+instance ToTLF (Tagged Simple a) => ToTLF (Maybe (Tagged Simple a))
   where
-    toHtml    = maybe (toHtml    (""::T.Text)) toHtml
-    toHtmlRaw = maybe (toHtmlRaw (""::T.Text)) toHtmlRaw
+    toTLF = maybe (toHtml (""::T.Text)) toTLF
 
 ----------------------- Rendering for Input --------------
-type RPTH (sid::[Nat]) a       = Tagged '(Simple, sid, Hidden      ) (Maybe a)
-type RPTI (sid::[Nat]) as a    = Tagged '(Simple, sid, Input as    ) (Maybe a)
-type RPTC (sid::[Nat]) vs ps a = Tagged '(Simple, sid, Choose vs ps) (Maybe a)
+type RPTH a       = Tagged '(Simple, Hidden      ) (Maybe a)
+type RPTI as a    = Tagged '(Simple, Input as    ) (Maybe a)
+type RPTC vs ps a = Tagged '(Simple, Choose vs ps) (Maybe a)
 
-instance {-# OVERLAPPABLE #-} (ToHtmlText a, GetAttrs (Input as), GetId sid)
-    => ToHtml (RPTI sid as a)
+instance {-# OVERLAPPABLE #-} (ToHtmlText a, GetAttrs (Input as))
+    => ToTLF (RPTI as a)
   where
-    toHtml    (Tagged b :: RPTI sid as a)
-        = input_
+    toTLF (Tagged b :: RPTI as a)
+        = getId >>= \t -> input_
             . maybe id ((:) . value_ . toHtmlText) b
-            . (id_ (getId' (proxy# :: Proxy# sid)) :)
+            . (id_ t :)
             $ getAttrs (Proxy :: Proxy (Input as))
-    toHtmlRaw = toHtml
-
-instance {-# OVERLAPPING #-} (GetAttrs (Input as), GetId sid)
-    => ToHtml (RPTI sid as Bool)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as))
+    => ToTLF (RPTI as Bool)
   where
-    toHtml    (Tagged b :: RPTI sid as Bool)
-        = input_
+    toTLF    (Tagged b :: RPTI as Bool)
+        = getId >>= \t -> input_
             . (if b == Just True then (checked_ :) else id)
-            . (id_ (getId' (proxy# :: Proxy# sid)) :)
+            . (id_ t :)
             . (type_ "checkbox" :)
             $ getAttrs (Proxy :: Proxy (Input as))
-    toHtmlRaw = toHtml
 
-inputNum :: (Num a, GetAttrs as, ToHtmlText a, Monad m, GetId sid)
-    => Proxy# sid -> Proxy as -> (Maybe a) -> HtmlT m ()
-inputNum s p v
-    = input_ . maybe id ((:) . value_ . toHtmlText) v
-    $ id_ (getId' s) : type_ "number" : getAttrs p
+inputNum :: (Num a, GetAttrs (Input as), ToHtmlText a, Monad m)
+    => RPTI as a -> MonadTLF m ()
+inputNum (Tagged v :: RPTI as a)
+    = getId >>= \t -> input_ . maybe id ((:) . value_ . toHtmlText) v
+    $ id_ t : type_ "number" : getAttrs (Proxy :: Proxy (Input as))
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as), GetId sid)
-    => ToHtml (RPTI sid as Int)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Int)
   where
-    toHtml (Tagged b :: RPTI sid as Int)
-        = inputNum (proxy# :: Proxy# sid) (Proxy :: Proxy (Input as)) b
-    toHtmlRaw = toHtml
+    toTLF = inputNum
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as), GetId sid)
-    => ToHtml (RPTI sid as Integer)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Integer)
   where
-    toHtml (Tagged b :: RPTI sid as Integer)
-        = inputNum (proxy# :: Proxy# sid) (Proxy :: Proxy (Input as)) b
-    toHtmlRaw = toHtml
+    toTLF = inputNum
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as), GetId sid)
-    => ToHtml (RPTI sid as Float)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Float)
   where
-    toHtml (Tagged b :: RPTI sid as Float)
-        = inputNum (proxy# :: Proxy# sid) (Proxy :: Proxy (Input as)) b
-    toHtmlRaw = toHtml
+    toTLF = inputNum
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as), GetId sid)
-    => ToHtml (RPTI sid as Double)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Double)
   where
-    toHtml (Tagged b :: RPTI sid as Double)
-        = inputNum (proxy# :: Proxy# sid) (Proxy :: Proxy (Input as)) b
-    toHtmlRaw = toHtml
+    toTLF = inputNum
 
 ------------------- Rendering for Choose value ------------
-instance (ToHtmlText a, Names2 vs, GetAttrs (Choose vs ps), GetId sid)
-    => ToHtml (RPTC sid vs ps a)
+instance (ToHtmlText a, Names2 vs, GetAttrs (Choose vs ps))
+    => ToTLF (RPTC vs ps a)
   where
-    toHtml (Tagged x :: RPTC sid vs ps a)
-        = select_
+    toTLF (Tagged x :: RPTC vs ps a)
+        = getId >>= \t -> select_
             (mapM_  (\(v,n) -> with (option_ $ fromString n)
                                     (f v [value_ (fromString v)])
                     ) $ names2 (proxy# :: Proxy# vs)
             ) `with`
-            ( id_ (getId' (proxy# :: Proxy# sid))
-            : getAttrs (Proxy :: Proxy (Choose vs ps))
-            )
+            ( id_ t : getAttrs (Proxy :: Proxy (Choose vs ps)))
       where
         val = fmap toHtmlText x
         f v | val == Just (T.pack v)    = (selected_ "" :)
             | otherwise                 = id
-    toHtmlRaw = toHtml
 
 ------------------- Rendering for Hidden value ------------
-instance (ToHtmlText a, GetId sid) => ToHtml (RPTH sid a) where
-    toHtml (Tagged v :: RPTH sid a)
-        = input_ $ maybe id ((:) . value_ . toHtmlText) v
-        [ id_ (getId' (proxy# :: Proxy# sid))
-        , type_ "hidden"
-        ]
-    toHtmlRaw = toHtml
+instance ToHtmlText a => ToTLF (RPTH a) where
+    toTLF (Tagged v :: RPTH a)
+        = getId >>= \t -> input_
+            (maybe id ((:) . value_ . toHtmlText) v [id_ t, type_ "hidden"])
 
 ------------------- Non-maybe ---------------------------
-type THV (sid::[Nat]) (h :: HtmlTag) = Tagged '(Simple, sid, h)
+type THV (h :: HtmlTag) = Tagged '(Simple, h)
 
-instance {-# OVERLAPPABLE #-} ToHtml (THV sid h (Maybe v)) => ToHtml (THV sid h v) where
-    toHtml = toHtml . fmap Just
-    toHtmlRaw = toHtml
+instance {-# OVERLAPPABLE #-} ToTLF (THV h (Maybe v)) => ToTLF (THV h v) where
+    toTLF = toTLF . fmap Just
 
 ----------------------------------
 
 type TN    (n::Symbol)   = Tagged '(Simple,n) ()
 type TNS   (n::[Symbol]) = Tagged '(Simple,n)
-type TNHV  (sid::[Nat]) (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, sid, n, h)
-type T_NHV (sid::[Nat]) (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, sid, '(n, h))
+type TNHV  (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, n, h)
+type T_NHV (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, '(n, h))
 
 ---------------- Rendering with label -----------------------
-instance KnownSymbol n => ToHtml (TN n) where
-    toHtml _  = fromString $ symbolVal' (proxy# :: Proxy# n)
-    toHtmlRaw = toHtml
+instance KnownSymbol n => ToTLF (TN n) where
+    toTLF _  = fromString $ symbolVal' (proxy# :: Proxy# n)
 
-instance ToHtml (TNS '[] ()) where
-    toHtml _  = return ()
-    toHtmlRaw = toHtml
+instance ToTLF (TNS '[] ()) where
+    toTLF _  = return ()
 
-instance (ToHtml (TN n), ToHtml (TNS ns ())) => ToHtml (TNS (n ': ns) ()) where
-    toHtml _ = do
-        th_ $ toHtml (Tagged () :: TN n)
-        toHtml (Tagged () :: TNS ns ())
-    toHtmlRaw = toHtml
+instance (ToTLF (TN n), ToTLF (TNS ns ())) => ToTLF (TNS (n ': ns) ()) where
+    toTLF _ = do
+        th_ $ toTLF (Tagged () :: TN n)
+        toTLF (Tagged () :: TNS ns ())
 
-labeledHtml :: (ToHtml (THV sid h v), ToHtml (TN n), Monad m)
-            => TNHV sid n h v -> HtmlT m ()
-labeledHtml (x :: TNHV sid n h v) = label_ $ do
-    toHtml (Tagged () :: TN n) >> ": "
-    toHtml (retag x :: THV sid h v)
+labeledHtml :: (ToTLF (THV h v), ToTLF (TN n), Monad m)
+            => TNHV n h v -> MonadTLF m ()
+labeledHtml (x :: TNHV n h v) = label_ $ do
+    toTLF (Tagged () :: TN n) >> ": "
+    toTLF (retag x :: THV h v)
 
-instance {-# OVERLAPPABLE #-} (ToHtml (THV sid h v), ToHtml (TN n))
-    => ToHtml (TNHV sid n h v)
+instance {-# OVERLAPPABLE #-} (ToTLF (THV h v), ToTLF (TN n))
+    => ToTLF (TNHV n h v)
   where
-    toHtml    = labeledHtml
-    toHtmlRaw = toHtml
+    toTLF    = labeledHtml
 
-instance {-# OVERLAPPING #-} (ToHtml (Tagged '(Simple, sid, Hidden) v), ToHtml (TN n))
-    => ToHtml (Tagged '(Simple, (sid :: [Nat]), (n :: Symbol), Hidden) v)
+instance {-# OVERLAPPING #-} (ToTLF (Tagged '(Simple, Hidden) v), ToTLF (TN n))
+    => ToTLF (Tagged '(Simple, (n :: Symbol), Hidden) v)
   where
-    toHtml x = labeledHtml x `with` [hidden_ ""]
-    toHtmlRaw = toHtml
+    toTLF x = labeledHtml x `with` [hidden_ ""]
 
 ---------------- Rendering as table raw -----------------------
-rowHtml :: (ToHtml (THV sid h v), ToHtml (TN n), Monad m) => T_NHV sid n h v -> HtmlT m ()
-rowHtml (x :: T_NHV sid n h v) = tr_ $ do
-    td_ $ toHtml (Tagged () :: TN n) >> ": "
-    td_ $ toHtml (retag x :: THV sid h v)
+rowHtml :: (ToTLF (THV h v), ToTLF (TN n), Monad m) => T_NHV n h v -> MonadTLF m ()
+rowHtml (x :: T_NHV n h v) = tr_ $ do
+    td_ $ toTLF (Tagged () :: TN n) >> ": "
+    td_ $ toTLF (retag x :: THV h v)
 
-instance {-# OVERLAPPABLE #-} (ToHtml (THV sid h v), ToHtml (TN n))
-    => ToHtml (T_NHV sid n h v)
+instance {-# OVERLAPPABLE #-} (ToTLF (THV h v), ToTLF (TN n))
+    => ToTLF (T_NHV n h v)
   where
-    toHtml    = rowHtml
-    toHtmlRaw = toHtml
+    toTLF = rowHtml
 
 instance {-# OVERLAPPING #-}
-    (ToHtml (Tagged '(Simple, sid, Hidden) v), ToHtml (TN n))
-    => ToHtml (Tagged '(Simple, (sid :: [Nat]), '((n :: Symbol), Hidden)) v)
+    (ToTLF (Tagged '(Simple, Hidden) v), ToTLF (TN n))
+    => ToTLF (Tagged '(Simple, '((n :: Symbol), Hidden)) v)
   where
-    toHtml x  = rowHtml x `with` [hidden_ ""]
-    toHtmlRaw = toHtml
+    toTLF x = rowHtml x `with` [hidden_ ""]
 
 ----------------- Rendering table -------------------------------
-type TRS  (sid::[Nat]) (rs :: [(Symbol, HtmlTag)]) v
-    = Tagged '(Simple, sid, rs) (Maybe v)
-type TRSF (sid::[Nat]) (rs :: [(Symbol, HtmlTag)]) v
-    = Tagged '(Simple, sid, False, rs) (Maybe v)
-type TRSS (sid::[Nat]) (rs :: [(Symbol, HtmlTag)]) v
-    = Tagged '(Simple, sid, rs) [v]
-type THS  (sid::[Nat]) (rs :: [HtmlTag]) = Tagged '(Simple, sid, rs)
+type TRS  (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, rs) (Maybe v)
+type TRSF (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, False, rs) (Maybe v)
+type TRSS (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, rs) [v]
+type THS  (rs :: [HtmlTag]) = Tagged '(Simple, rs)
 
-instance ToHtml (TRS sid '[] ())
+instance ToTLF (TRS '[] ())
   where
-    toHtml    _ = return ()
-    toHtmlRaw _ = return ()
+    toTLF    _ = return ()
 
-instance ToHtml (TRSF sid '[] ())
+instance ToTLF (TRSF '[] ())
   where
-    toHtml    _ = return ()
-    toHtmlRaw _ = return ()
+    toTLF    _ = return ()
 
-instance ( ToHtml (T_NHV (sid ': ids) n h (Maybe v))
-         , ToHtml (TRSF (sid+1 ': ids) rs vs))
-    => ToHtml (TRSF (sid ': ids) ('(n, h) ': rs) (v,vs))
+instance ( ToTLF (T_NHV n h (Maybe v)), ToTLF (TRSF rs vs))
+    => ToTLF (TRSF ('(n, h) ': rs) (v,vs))
   where
-    toHtml x = do
-        toHtml (retag $ fmap (fmap fst) x :: T_NHV (sid ': ids) n h (Maybe v))
-        toHtml (retag $ fmap (fmap snd) x :: TRSF (sid+1 ': ids) rs vs)
-    toHtmlRaw = toHtml
+    toTLF x = do
+        toTLF (retag $ fmap (fmap fst) x :: T_NHV n h (Maybe v))
+        toTLF (retag $ fmap (fmap snd) x :: TRSF rs vs)
 
-instance {-# OVERLAPPING #-} ToHtml (TRSF (1 ': sid) (r ': rs) (x,xs))
-    => ToHtml (TRS sid (r ': rs) (x,xs))
+instance {-# OVERLAPPING #-} ToTLF (TRSF rs xs) => ToTLF (TRS rs xs)
   where
-    toHtml zs = table_ $ toHtml (retag zs :: TRSF (1 ': sid) (r ': rs) (x,xs))
-    toHtmlRaw = toHtml
+    toTLF zs = do
+        nextIdLev
+        table_ $ toTLF (retag zs :: TRSF rs xs)
+        prevIdLev
 
-instance {-# OVERLAPPABLE #-} ToHtml (TRS sid rs xs)
-    => ToHtml (Tagged '(Simple, sid, rs) xs)
+instance {-# OVERLAPPABLE #-} ToTLF (TRS rs xs) => ToTLF (Tagged '(Simple, rs) xs)
   where
-    toHtml    = toHtml . fmap Just
-    toHtmlRaw = toHtml
+    toTLF    = toTLF . fmap Just
 
-instance ToHtml (THS sid '[] ()) where
-    toHtml _ = return ()
-    toHtmlRaw = toHtml
+instance ToTLF (THS '[] ()) where
+    toTLF _ = return ()
 
-instance (ToHtml (THV (sid ': ids) r v), ToHtml (THS (sid+1 ': ids) rs vs))
-    => ToHtml (THS (sid ': ids) (r ': rs) (v,vs))
+instance (ToTLF (THV r v), ToTLF (THS rs vs)) => ToTLF (THS (r ': rs) (v,vs))
   where
-    toHtml x = do
-        td_ $ toHtml (retag $ fmap fst x :: THV (sid ': ids) r v)
-        toHtml (retag $ fmap snd x :: THS (sid+1 ': ids) rs vs)
-    toHtmlRaw = toHtml
+    toTLF x = do
+        td_ $ toTLF (retag $ fmap fst x :: THV r v)
+        toTLF (retag $ fmap snd x :: THS rs vs)
 
-instance (ToHtml (TNS (LFst rs) ()), ToHtml (THS (1 ': sid) (LSnd rs) v))
-    => ToHtml (TRSS sid rs v)
+instance (ToTLF (TNS (LFst rs) ()), ToTLF (THS (LSnd rs) v)) => ToTLF (TRSS rs v)
   where
-    toHtml (Tagged x)
+    toTLF (Tagged xs)
         = table_ $ do
-            tr_ $ toHtml (Tagged () :: TNS (LFst rs) ())
-            -- !!! no mapM_ ! row id should be changed! Alas, probably, we need State monad...
-            mapM_ (tr_ . toHtml . (Tagged :: v -> THS (1 ': sid) (LSnd rs) v)) x
-    toHtmlRaw = toHtml
+            tr_ $ toTLF (Tagged () :: TNS (LFst rs) ())
+            mapM_ (\x -> do
+                    nextIdLev
+                    tr_ $ toTLF $ (Tagged :: v -> THS (LSnd rs) v) x
+                    prevIdLev
+                ) xs
 
-instance (ToHtml (TNS rs ()), ToHtml (Tagged Simple v)) => ToHtml (TNS rs [v])
+instance (ToTLF (TNS rs ()), ToTLF (Tagged Simple v)) => ToTLF (TNS rs [v])
   where
-    toHtml (Tagged x)
+    toTLF (Tagged x)
         = table_ $ do
-            tr_ $ toHtml (Tagged () :: TNS rs ())
-            mapM_ (tr_ . toHtml . (Tagged :: v -> Tagged Simple v)) x
-    toHtmlRaw = toHtml
+            tr_ $ toTLF (Tagged () :: TNS rs ())
+            mapM_ (tr_ . toTLF . (Tagged :: v -> Tagged Simple v)) x
+{-
+-}

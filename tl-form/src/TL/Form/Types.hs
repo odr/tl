@@ -17,6 +17,7 @@ import GHC.Prim(Proxy#, proxy#)
 import GHC.TypeLits(Symbol, KnownSymbol, symbolVal', Nat, KnownNat, natVal, natVal')
 import Control.Monad.Trans.State
 import Safe
+import Control.Monad.Trans.Class
 
 data HtmlTag
     = None
@@ -26,22 +27,25 @@ data HtmlTag
 
 data InputAttr = ReadOnly | Attr Symbol Symbol
 
-{-
-type MonadTLF m = StateT [Int] (HtmlT m)
+type MonadTLF m = HtmlT (StateT [Int] m)
 
 class ToTLF a where
     toTLF :: Monad m => a -> MonadTLF m ()
 
 getId :: Monad m => MonadTLF m T.Text
-getId = fmap (T.intercalate ("-") . reverse . map (T.pack . show)) get
-      <* modify a1
+getId = lift
+        $ fmap (T.intercalate ("-") . reverse . map (T.pack . show)) get
+        <* modify a1
   where
     a1 [] = error "error in TL.Form.Types.getId. Empty list"
     a1 (x:xs) = x+1 : xs
 
 nextIdLev :: Monad m => MonadTLF m ()
-nextIdLev = modify (1:)
--}
+nextIdLev = lift $ modify (1:)
+
+prevIdLev :: Monad m => MonadTLF m ()
+prevIdLev = lift $ modify tail
+
 
 class ToHtmlText a where
     toHtmlText :: a -> T.Text
@@ -103,7 +107,7 @@ instance (GetAttrs (Choose ss as), KnownSymbol n, KnownSymbol v)
                         (T.pack $ symbolVal' (proxy# :: Proxy# v))
         : getAttrs (Proxy :: Proxy (Choose ss as))
 
--- {-
+{-
 class GetId (a :: [Nat]) where
     getId  :: Proxy a  -> T.Text
     getId' :: Proxy# a -> T.Text
@@ -121,4 +125,4 @@ instance (KnownNat x, GetId xs) => GetId (x ': xs) where
                     r `mappend` if T.null r then "" else "-")
         `mappend` T.pack (show $ natVal' (proxy# :: Proxy# x))
 
--- -}
+-}
