@@ -12,12 +12,14 @@ import Lucid
 import Lucid.Base
 import Data.Tagged
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import Data.Proxy(Proxy(..))
 import GHC.Prim(Proxy#, proxy#)
 import GHC.TypeLits(Symbol, KnownSymbol, symbolVal', Nat, KnownNat, natVal, natVal')
 import Control.Monad.Trans.State
 import Safe
 import Control.Monad.Trans.Class
+import Data.Functor.Identity
 
 data HtmlTag
     = None
@@ -27,24 +29,27 @@ data HtmlTag
 
 data InputAttr = ReadOnly | Attr Symbol Symbol
 
-type MonadTLF m = HtmlT (StateT [Int] m)
+type MonadTLF m = HtmlT (StateT Int m)
 
 class ToTLF a where
     toTLF :: Monad m => a -> MonadTLF m ()
 
+renderText1 :: MonadTLF Identity a -> TL.Text
+renderText1 = runIdentity . flip evalStateT 1 . renderTextT
+
 getId :: Monad m => MonadTLF m T.Text
-getId = lift
-        $ fmap (T.intercalate ("-") . reverse . map (T.pack . show)) get
-        <* modify a1
-  where
-    a1 [] = error "error in TL.Form.Types.getId. Empty list"
-    a1 (x:xs) = x+1 : xs
+getId = lift $ fmap (T.pack . show) get <* modify (+1)
+--         $ fmap (T.intercalate ("-") . reverse . map (T.pack . show)) get
+--         <* modify a1
+--   where
+--     a1 [] = error "error in TL.Form.Types.getId. Empty list"
+--     a1 (x:xs) = x+1 : xs
 
-nextIdLev :: Monad m => MonadTLF m ()
-nextIdLev = lift $ modify (1:)
-
-prevIdLev :: Monad m => MonadTLF m ()
-prevIdLev = lift $ modify tail
+-- nextIdLev :: Monad m => MonadTLF m ()
+-- nextIdLev = lift $ modify (1:)
+--
+-- prevIdLev :: Monad m => MonadTLF m ()
+-- prevIdLev = lift $ modify tail
 
 
 class ToHtmlText a where
