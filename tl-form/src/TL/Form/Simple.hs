@@ -195,9 +195,7 @@ instance ( ToTLF (T_NHV n h (Maybe v)), ToTLF (TRSF rs vs))
 instance {-# OVERLAPPING #-} ToTLF (TRSF (r ': rs) xs) => ToTLF (TRS (r ': rs) xs)
   where
     toTLF zs = do
-        -- nextIdLev
         table_ $ toTLF (retag zs :: TRSF (r ': rs) xs)
-        -- prevIdLev
 
 instance {-# OVERLAPPABLE #-} ToTLF (TRS rs xs) => ToTLF (Tagged '(Simple, rs) xs)
   where
@@ -216,13 +214,11 @@ instance (ToTLF (TNS (LFst rs) ()), ToTLF (THS (LSnd rs) v)) => ToTLF (TRSS rs v
   where
     toTLF (Tagged xs)
         = do
-            -- nextIdLev
             table_ $ do
                 tr_ $ toTLF (Tagged () :: TNS (LFst rs) ())
                 mapM_ (\x -> do
                         tr_ $ toTLF $ (Tagged :: v -> THS (LSnd rs) v) x
                     ) xs
-            -- prevIdLev
 
 instance (ToTLF (TNS rs ()), ToTLF (Tagged Simple v)) => ToTLF (TNS rs [v])
   where
