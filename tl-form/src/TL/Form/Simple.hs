@@ -51,6 +51,10 @@ type RPTH a       = Tagged '(Simple, Hidden      ) (Maybe a)
 type RPTI as a    = Tagged '(Simple, Input as    ) (Maybe a)
 type RPTC vs ps a = Tagged '(Simple, Choose vs ps) (Maybe a)
 
+instance ToHtml v =>  ToTLF (Tagged '(Simple, None) v) 
+  where
+    toTLF = toHtml . untag
+
 instance {-# OVERLAPPABLE #-} (ToHtmlText a, GetAttrs (Input as))
     => ToTLF (RPTI as a)
   where
@@ -172,9 +176,13 @@ instance {-# OVERLAPPING #-}
     toTLF x = rowHtml x `with` [hidden_ ""]
 
 ----------------- Rendering table -------------------------------
+-- editable record (as two-column table: label - input)
 type TRS  (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, rs) (Maybe v)
+-- editable record internal (as two-column table: label - input)
 type TRSF (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, False, rs) (Maybe v)
+-- editable table 
 type TRSS (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, rs) [v]
+-- editable table row
 type THS  (rs :: [HtmlTag]) = Tagged '(Simple, rs)
 
 instance ToTLF (TRS '[] ())
@@ -226,5 +234,14 @@ instance (ToTLF (TNS rs ()), ToTLF (Tagged Simple v)) => ToTLF (TNS rs [v])
         = table_ $ do
             tr_ $ toTLF (Tagged () :: TNS rs ())
             mapM_ (tr_ . toTLF . (Tagged :: v -> Tagged Simple v)) x
-{-
--}
+
+instance ToTLF (Tagged '(Simple, ('[]::[[(Symbol,HtmlTag)]])) ()) where
+    toTLF _ = mempty
+    
+instance (ToTLF (Tagged '(Simple, rs) vs), ToTLF (Tagged '(Simple, rss) vss)) 
+    => ToTLF (Tagged '(Simple, rs ': (rss  :: [[(Symbol, HtmlTag)]])) (vs,vss)) 
+  where
+    toTLF x = do
+        toTLF (retag $ fmap fst x :: Tagged '(Simple, rs) vs)
+        toTLF (retag $ fmap snd x :: Tagged '(Simple, rss) vss)
+        

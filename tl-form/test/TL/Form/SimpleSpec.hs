@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TupleSections #-}
 -- {-# LANGUAGE PolyKinds #-}
 module TL.Form.SimpleSpec where
 
@@ -227,7 +228,7 @@ spec = describe "Simple rendering" $ do
             renderText1 (
                 toTLF (Tagged ("xxx",(1,()))
                         :: Tagged '(Simple
-                                    ,  '[ '("one", Choose '[ '("1","One"),'("2","Two")] '[])
+                                    ,  '[ '("one", Chs '[])
                                         , '("two",Input '[])
                                         ]
                                     ) (Text,(Double,()))
@@ -244,8 +245,8 @@ spec = describe "Simple rendering" $ do
             renderText1 (
                 toTLF (Tagged [("v1",("2",(1,()))),("v2",("1",(2,())))]
                         :: Tagged  '(Simple
-                                    , '[ '("i1", Input '[])
-                                        , '("c1", Choose '[ '("1","One"),'("2","Two")] '[])
+                                    , '[  '("i1", Input '[])
+                                        , '("c1", Chs '[])
                                         , '("i2", Input '[ReadOnly])
                                         ]
                                     ) [(Text,(Text,(Int,())))]
@@ -276,4 +277,55 @@ spec = describe "Simple rendering" $ do
                     , "<tr><td>v1</td><td>2</td><td>1</td></tr>"
                     , "<tr><td>v2</td><td>1</td><td>2</td></tr></table>"
                     ]
+    describe "Records and tables can be composed" $ do
+        it "rendered as well" $ do
+            renderText1 (
+                    toTLF (Tagged $
+                            ( ([("v1",("2",(1,()))),("v2",("1",(2,())))] ,)
+                            . ([("v1",("2",(1,()))),("v2",("1",(2,())))] ,)
+                            . (("xxx",(1,())) ,)
+                            ) $ ()
+                            :: Tagged  
+                                '(Simple
+                                , '[ '[ '("i1", None)
+                                      , '("c1", None)
+                                      , '("i2", Input '[ReadOnly])
+                                      ]
+                                   , '[ '("i1", Input '[])
+                                      , '("c1", Chs '[])
+                                      , '("i2", Input '[ReadOnly])
+                                      ]
+                                   , '[ '("one", Chs '[])
+                                      , '("two", Input '[])
+                                      ]
+                                   ]
+                                 )
+                                 ([(Text,(Text,(Int,())))]
+                                 ,([(Text,(Text,(Int,())))]
+                                 ,((Text,(Double,()))
+                                 ,())))
+                            ))
+                    `shouldBe` mconcat
+                        [ "<table><tr><th>i1</th><th>c1</th><th>i2</th></tr>"
+                        , "<tr><td>v1</td><td>2</td><td><input value=\"1\" "
+                        , "id=\"1\" type=\"number\" readonly></td></tr><tr>"
+                        , "<td>v2</td><td>1</td><td><input value=\"2\" id=\"2\""
+                        , " type=\"number\" readonly></td></tr></table><table>"
+                        , "<tr><th>i1</th><th>c1</th><th>i2</th></tr><tr><td>"
+                        , "<input value=\"v1\" id=\"3\"></td><td><select "
+                        , "id=\"4\"><option value=\"1\">One</option><option "
+                        , "value=\"2\" selected>Two</option></select></td><td>"
+                        , "<input value=\"1\" id=\"5\" type=\"number\" "
+                        , "readonly></td></tr><tr><td><input value=\"v2\" "
+                        , "id=\"6\"></td><td><select id=\"7\"><option "
+                        , "value=\"1\" selected>One</option><option value=\"2\">"
+                        , "Two</option></select></td><td><input value=\"2\" "
+                        , "id=\"8\" type=\"number\" readonly></td></tr></table>"
+                        , "<table><tr><td>one: </td><td><select id=\"9\">"
+                        , "<option value=\"1\">One</option><option value=\"2\">"
+                        , "Two</option></select></td></tr><tr><td>two: </td><td>"
+                        , "<input value=\"1.0\" id=\"10\" type=\"number\">"
+                        , "</td></tr></table>"
+                        ]
 
+type Chs = Choose '[ '("1","One"),'("2","Two")]
