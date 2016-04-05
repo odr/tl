@@ -20,37 +20,37 @@ spec :: Spec
 spec = describe "Simple rendering" $ do
     describe "For output-only values" $ do
         it "render Int" $ do
-            renderText1 (toTLF (Tagged 1 :: Tagged Simple Int))
+            renderText (toHtml (Tagged 1 :: Tagged Simple Int))
                 `shouldBe` "1"
         it "render Integer" $ do
-            renderText1 (toTLF (Tagged 12345678901234567890 :: Tagged Simple Integer))
+            renderText (toHtml (Tagged 12345678901234567890 :: Tagged Simple Integer))
                 `shouldBe` "12345678901234567890"
         it "render Float" $ do
-            renderText1 (toTLF (Tagged 1 :: Tagged Simple Float))
+            renderText (toHtml (Tagged 1 :: Tagged Simple Float))
                 `shouldBe` "1.0"
         it "render Double" $ do
-            renderText1 (toTLF (Tagged 1 :: Tagged Simple Double))
+            renderText (toHtml (Tagged 1 :: Tagged Simple Double))
                 `shouldBe` "1.0"
         it "render String" $ do
-            renderText1 (toTLF (Tagged "русский язык" :: Tagged Simple String))
+            renderText (toHtml (Tagged "русский язык" :: Tagged Simple String))
                 `shouldBe` "русский язык"
         it "render Text" $ do
-            renderText1 (toTLF (Tagged "עברית" :: Tagged Simple Text))
+            renderText (toHtml (Tagged "עברית" :: Tagged Simple Text))
                 `shouldBe` "עברית"
         context "with Maybe a" $ do
             it "render having value" $ do
-                renderText1 (toTLF (Tagged (Just 1) :: Tagged Simple (Maybe Int)))
+                renderText (toHtml (Tagged (Just 1) :: Tagged Simple (Maybe Int)))
                     `shouldBe` "1"
             it "render having no value" $ do
-                renderText1 (toTLF (Tagged Nothing :: Tagged Simple (Maybe Text)))
+                renderText (toHtml (Tagged Nothing :: Tagged Simple (Maybe Text)))
                     `shouldBe` ""
         context "when rendering Bool" $ do
             it "rendered as '+' for 'True'" $ do
-                renderText1 (toTLF (Tagged True :: Tagged Simple Bool)) `shouldBe` "+"
+                renderText (toHtml (Tagged True :: Tagged Simple Bool)) `shouldBe` "+"
             it "rendered as '-' for 'False'" $ do
-                renderText1 (toTLF (Tagged False :: Tagged Simple Bool)) `shouldBe` "-"
+                renderText (toHtml (Tagged False :: Tagged Simple Bool)) `shouldBe` "-"
         it "render Symbol as Text: Tagged '(Simple, n::Symbol) ()" $ do
-            renderText1 (toTLF (Tagged () :: Tagged '(Simple, "test") ()))
+            renderText (toHtml (Tagged () :: Tagged '(Simple, "test") ()))
                 `shouldBe` "test"
 
     describe "Rendering for Input: (Simple, ids, Input ias)" $ do
@@ -278,11 +278,11 @@ spec = describe "Simple rendering" $ do
                     , "<tr><td>v2</td><td>1</td><td>2</td></tr></table>"
                     ]
     describe "Records and tables can be composed" $ do
-        it "rendered as well" $ do
+        it "render list of tables one after another" $ do
             renderText1 (
                     toTLF (Tagged $
                             ( ([("v1",("2",(1,()))),("v2",("1",(2,())))] ,)
-                            . ([("v1",("2",(1,()))),("v2",("1",(2,())))] ,)
+                            . ([("v1",("2",(1,(False,())))),("v2",("1",(2,(True,()))))] ,)
                             . (("xxx",(1,())) ,)
                             ) $ ()
                             :: Tagged  
@@ -294,6 +294,7 @@ spec = describe "Simple rendering" $ do
                                    , '[ '("i1", Input '[])
                                       , '("c1", Chs '[])
                                       , '("i2", Input '[ReadOnly])
+                                      , '("check", Input '[])
                                       ]
                                    , '[ '("one", Chs '[])
                                       , '("two", Input '[])
@@ -301,7 +302,7 @@ spec = describe "Simple rendering" $ do
                                    ]
                                  )
                                  ([(Text,(Text,(Int,())))]
-                                 ,([(Text,(Text,(Int,())))]
+                                 ,([(Text,(Text,(Int,(Bool,()))))]
                                  ,((Text,(Double,()))
                                  ,())))
                             ))
@@ -310,22 +311,56 @@ spec = describe "Simple rendering" $ do
                         , "<tr><td>v1</td><td>2</td><td><input value=\"1\" "
                         , "id=\"1\" type=\"number\" readonly></td></tr><tr>"
                         , "<td>v2</td><td>1</td><td><input value=\"2\" id=\"2\""
-                        , " type=\"number\" readonly></td></tr></table><table>"
-                        , "<tr><th>i1</th><th>c1</th><th>i2</th></tr><tr><td>"
-                        , "<input value=\"v1\" id=\"3\"></td><td><select "
-                        , "id=\"4\"><option value=\"1\">One</option><option "
-                        , "value=\"2\" selected>Two</option></select></td><td>"
-                        , "<input value=\"1\" id=\"5\" type=\"number\" "
-                        , "readonly></td></tr><tr><td><input value=\"v2\" "
-                        , "id=\"6\"></td><td><select id=\"7\"><option "
-                        , "value=\"1\" selected>One</option><option value=\"2\">"
-                        , "Two</option></select></td><td><input value=\"2\" "
-                        , "id=\"8\" type=\"number\" readonly></td></tr></table>"
-                        , "<table><tr><td>one: </td><td><select id=\"9\">"
+                        , " type=\"number\" readonly></td></tr></table>"
+                        , "<table><tr><th>i1</th><th>c1</th><th>i2</th>"
+                        , "<th>check</th></tr><tr><td><input value=\"v1\" id=\"3\">"
+                        , "</td><td><select id=\"4\"><option value=\"1\">One"
+                        , "</option><option value=\"2\" selected>Two</option>"
+                        , "</select></td><td><input value=\"1\" id=\"5\" "
+                        , "type=\"number\" readonly></td><td><input id=\"6\" "
+                        , "type=\"checkbox\"></td></tr><tr><td><input "
+                        , "value=\"v2\" id=\"7\"></td><td><select id=\"8\">"
+                        , "<option value=\"1\" selected>One</option>"
+                        , "<option value=\"2\">Two</option></select></td><td>"
+                        , "<input value=\"2\" id=\"9\" type=\"number\" readonly>"
+                        , "</td><td><input checked id=\"10\" type=\"checkbox\">"
+                        , "</td></tr></table>"
+                        , "<table><tr><td>one: </td><td><select id=\"11\">"
                         , "<option value=\"1\">One</option><option value=\"2\">"
                         , "Two</option></select></td></tr><tr><td>two: </td><td>"
-                        , "<input value=\"1.0\" id=\"10\" type=\"number\">"
+                        , "<input value=\"1.0\" id=\"12\" type=\"number\">"
                         , "</td></tr></table>"
                         ]
+        it "render table as element" $ do
+            renderText1 (
+                    toTLF (Tagged
+                            [("v1",(("rec",(False,())),(1,())))
+                            ,("v2",(("???",(True, ())),(2,())))
+                            ]
+                        :: Tagged
+                            '(Simple
+                            , '[ '("i1", Input '[])
+                               , '("c1", Tab '[ '("name", Input '[])
+                                              , '("c1", Input '[])
+                                              ])
+                               , '("i2", Input '[ReadOnly])
+                               ]
+                            ) [(Text,((Text,(Bool,())),(Int,())))]
+                        ))
+                    `shouldBe` mconcat 
+                        [ "<table><tr><th>i1</th><th>c1</th><th>i2</th></tr>"
+                        , "<tr><td><input value=\"v1\" id=\"1\"></td><td>"
+                        , "<table><tr><td>name: </td><td><input value=\"rec\" "
+                        , "id=\"2\"></td></tr><tr><td>c1: </td><td><input "
+                        , "id=\"3\" type=\"checkbox\"></td></tr></table></td>"
+                        , "<td><input value=\"1\" id=\"4\" type=\"number\" "
+                        , "readonly></td></tr><tr><td><input value=\"v2\" "
+                        , "id=\"5\"></td><td><table><tr><td>name: </td><td>"
+                        , "<input value=\"???\" id=\"6\"></td></tr><tr><td>"
+                        , "c1: </td><td><input checked id=\"7\" type=\"checkbox\">"
+                        , "</td></tr></table></td><td><input value=\"2\" "
+                        , "id=\"8\" type=\"number\" readonly></td></tr></table>"
+                        ]
+                               
 
 type Chs = Choose '[ '("1","One"),'("2","Two")]

@@ -26,6 +26,7 @@ data HtmlTag
     | Hidden
     | Input [InputAttr]
     | Choose [(Symbol,Symbol)] [InputAttr]
+    | Tab [(Symbol,HtmlTag)]
 
 data InputAttr = ReadOnly | Attr Symbol Symbol
 
@@ -33,24 +34,14 @@ type MonadTLF m = HtmlT (StateT Int m)
 
 class ToTLF a where
     toTLF :: Monad m => a -> MonadTLF m ()
+    jsTLF :: a -> TL.Text
+    jsTLF _ = mempty
 
 renderText1 :: MonadTLF Identity a -> TL.Text
 renderText1 = runIdentity . flip evalStateT 1 . renderTextT
 
 getId :: Monad m => MonadTLF m T.Text
 getId = lift $ fmap (T.pack . show) get <* modify (+1)
---         $ fmap (T.intercalate ("-") . reverse . map (T.pack . show)) get
---         <* modify a1
---   where
---     a1 [] = error "error in TL.Form.Types.getId. Empty list"
---     a1 (x:xs) = x+1 : xs
-
--- nextIdLev :: Monad m => MonadTLF m ()
--- nextIdLev = lift $ modify (1:)
---
--- prevIdLev :: Monad m => MonadTLF m ()
--- prevIdLev = lift $ modify tail
-
 
 class ToHtmlText a where
     toHtmlText :: a -> T.Text
@@ -111,23 +102,3 @@ instance (GetAttrs (Choose ss as), KnownSymbol n, KnownSymbol v)
         = makeAttribute (T.pack $ symbolVal' (proxy# :: Proxy# n))
                         (T.pack $ symbolVal' (proxy# :: Proxy# v))
         : getAttrs (Proxy :: Proxy (Choose ss as))
-
-{-
-class GetId (a :: [Nat]) where
-    getId  :: Proxy a  -> T.Text
-    getId' :: Proxy# a -> T.Text
-
-instance GetId '[] where
-    getId _ = ""
-    getId' _ = ""
-
-instance (KnownNat x, GetId xs) => GetId (x ': xs) where
-    getId _  = (let r = getId  (Proxy  :: Proxy  xs) in
-                    r `mappend` if T.null r then "" else "-")
-        `mappend` T.pack (show $ natVal  (Proxy  :: Proxy  x))
-
-    getId' _ = (let r = getId' (proxy# :: Proxy# xs) in
-                    r `mappend` if T.null r then "" else "-")
-        `mappend` T.pack (show $ natVal' (proxy# :: Proxy# x))
-
--}

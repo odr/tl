@@ -107,6 +107,10 @@ type family LSnd (a :: [(k1,k2)]) :: [ks] where
 pLFst :: Proxy a -> Proxy (LFst a)
 pLFst (_::Proxy a) = Proxy :: Proxy (LFst a)
 
+type family ZipK2 (a :: [k1]) (b::k2) :: [(k1,k2)] where
+    ZipK2 '[] b = '[]
+    ZipK2 (a ': as) b = '(a,b) ': ZipK2 as b
+    
 type family ContainNames (a :: [(k,k2)]) (b :: [k]) :: Constraint where
     ContainNames as '[] = ()
     ContainNames ('(a,v) ': as) '[a] = ()
