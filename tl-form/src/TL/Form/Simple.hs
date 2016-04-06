@@ -59,29 +59,31 @@ instance ToHtml (Tagged Simple v) =>  ToTLF (Tagged '(Simple, None) v)
   where
     toTLF x = toHtml (retag x :: Tagged Simple v)
 
+-- Input field (text)
 instance {-# OVERLAPPABLE #-} (ToHtmlText a, GetAttrs (Input as))
     => ToTLF (RPTI as a)
   where
     toTLF (Tagged b :: RPTI as a)
-        = getId >>= \t -> input_
+        = input_
             . maybe id ((:) . value_ . toHtmlText) b
-            . (id_ t :)
             $ getAttrs (Proxy :: Proxy (Input as))
+            
+-- Input field (checkbox)            
 instance {-# OVERLAPPING #-} (GetAttrs (Input as))
     => ToTLF (RPTI as Bool)
   where
     toTLF    (Tagged b :: RPTI as Bool)
-        = getId >>= \t -> input_
+        = input_
             . (if b == Just True then (checked_ :) else id)
-            . (id_ t :)
             . (type_ "checkbox" :)
             $ getAttrs (Proxy :: Proxy (Input as))
 
+-- | Input field for numbers
 inputNum :: (Num a, GetAttrs (Input as), ToHtmlText a, Monad m)
     => RPTI as a -> MonadTLF m ()
 inputNum (Tagged v :: RPTI as a)
-    = getId >>= \t -> input_ . maybe id ((:) . value_ . toHtmlText) v
-    $ id_ t : type_ "number" : getAttrs (Proxy :: Proxy (Input as))
+    = input_ . maybe id ((:) . value_ . toHtmlText) v
+    $ type_ "number" : getAttrs (Proxy :: Proxy (Input as))
 
 instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Int)
   where
@@ -104,12 +106,12 @@ instance (ToHtmlText a, Names2 vs, GetAttrs (Choose vs ps))
     => ToTLF (RPTC vs ps a)
   where
     toTLF (Tagged x :: RPTC vs ps a)
-        = getId >>= \t -> select_
+        = select_
             (mapM_  (\(v,n) -> with (option_ $ fromString n)
                                     (f v [value_ (fromString v)])
                     ) $ names2 (proxy# :: Proxy# vs)
             ) `with`
-            ( id_ t : getAttrs (Proxy :: Proxy (Choose vs ps)))
+            ( getAttrs (Proxy :: Proxy (Choose vs ps)))
       where
         val = fmap toHtmlText x
         f v | val == Just (T.pack v)    = (selected_ "" :)
@@ -118,8 +120,8 @@ instance (ToHtmlText a, Names2 vs, GetAttrs (Choose vs ps))
 ------------------- Rendering for Hidden value ------------
 instance ToHtmlText a => ToTLF (RPTH a) where
     toTLF (Tagged v :: RPTH a)
-        = getId >>= \t -> input_
-            (maybe id ((:) . value_ . toHtmlText) v [id_ t, type_ "hidden"])
+        = input_
+            (maybe id ((:) . value_ . toHtmlText) v [type_ "hidden"])
 
 ------------------- Non-maybe ---------------------------
 type THV (h :: HtmlTag) = Tagged '(Simple, h)
@@ -128,10 +130,13 @@ instance {-# OVERLAPPABLE #-} ToTLF (THV h (Maybe v)) => ToTLF (THV h v) where
     toTLF = toTLF . fmap Just
 
 ----------------------------------
-
+-- just text
 type TN    (n::Symbol)   = Tagged '(Simple,n) ()
+-- sequence of <th>
 type TNS   (n::[Symbol]) = Tagged '(Simple,n)
+-- label with tag
 type TNHV  (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, n, h)
+-- row with two fields (label and tag)
 type T_NHV (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, '(n, h))
 
 ---------------- Rendering with label -----------------------
@@ -144,14 +149,22 @@ instance ToTLF (TNS '[] ()) where
 
 instance (ToHtml (TN n), ToTLF (TNS ns ())) => ToTLF (TNS (n ': ns) ()) where
     toTLF _ = do
-        th_ $ toHtml (Tagged () :: TN n)
+        withName tn $ th_ tn
         toTLF (Tagged () :: TNS ns ())
+      where
+        tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
+        tn = toHtml (Tagged () :: TN n)
 
 labeledHtml :: (ToTLF (THV h v), ToHtml (TN n), Monad m)
             => TNHV n h v -> MonadTLF m ()
-labeledHtml (x :: TNHV n h v) = label_ $ do
-    toHtml (Tagged () :: TN n) >> ": "
-    toTLF (retag x :: THV h v)
+labeledHtml (x :: TNHV n h v) = withName tn $
+    label_ $ do
+        tn >> ": "
+        toTLF (retag x :: THV h v)
+  where
+    tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
+    tn = toHtml (Tagged () :: TN n)
+         
 
 instance {-# OVERLAPPABLE #-} (ToTLF (THV h v), ToHtml (TN n))
     => ToTLF (TNHV n h v)
@@ -165,9 +178,12 @@ instance {-# OVERLAPPING #-} (ToTLF (Tagged '(Simple, Hidden) v), ToHtml (TN n))
 
 ---------------- Rendering as table raw -----------------------
 rowHtml :: (ToTLF (THV h v), ToHtml (TN n), Monad m) => T_NHV n h v -> MonadTLF m ()
-rowHtml (x :: T_NHV n h v) = tr_ $ do
-    td_ $ toHtml (Tagged () :: TN n) >> ": "
+rowHtml (x :: T_NHV n h v) = withName tn $ tr_ $ do
+    td_ $ tn >> ": "
     td_ $ toTLF (retag x :: THV h v)
+  where
+    tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
+    tn = toHtml (Tagged () :: TN n)
 
 instance {-# OVERLAPPABLE #-} (ToTLF (THV h v), ToHtml (TN n))
     => ToTLF (T_NHV n h v)
@@ -188,7 +204,7 @@ type TRSF (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, False, rs) (Maybe v)
 -- editable table 
 type TRSS (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, rs) [v]
 -- editable table row
-type THS  (rs :: [HtmlTag]) = Tagged '(Simple, rs)
+type THS  (rs :: [(Symbol, HtmlTag)]) = Tagged '(Simple, True, rs)
 
 instance ToTLF (TRS '[] ())
   where
@@ -217,20 +233,27 @@ instance {-# OVERLAPPABLE #-} ToTLF (TRS rs xs) => ToTLF (Tagged '(Simple, rs) x
 instance ToTLF (THS '[] ()) where
     toTLF _ = return ()
 
-instance (ToTLF (THV r v), ToTLF (THS rs vs)) => ToTLF (THS (r ': rs) (v,vs))
+instance (ToTLF (THV r v), ToTLF (THS rs vs), ToHtml (TN n)) 
+    => ToTLF (THS ( '(n,r) ': rs) (v,vs))
   where
     toTLF x = do
-        td_ $ toTLF (retag $ fmap fst x :: THV r v)
+        withName tn $ td_ $ toTLF (retag $ fmap fst x :: THV r v)
         toTLF (retag $ fmap snd x :: THS rs vs)
+      where
+        tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
+        tn = toHtml (Tagged () :: TN n)
 
-instance (ToTLF (TNS (LFst rs) ()), ToTLF (THS (LSnd rs) v)) => ToTLF (TRSS rs v)
+instance (ToTLF (TNS (LFst rs) ()), ToTLF (THS rs v)) => ToTLF (TRSS rs v)
   where
     toTLF (Tagged xs)
         = do
             table_ $ do
                 tr_ $ toTLF (Tagged () :: TNS (LFst rs) ())
+                
                 mapM_ (\x -> do
-                        tr_ $ toTLF $ (Tagged :: v -> THS (LSnd rs) v) x
+                        -- levBegin
+                        tr_ $ toTLF $ (Tagged :: v -> THS rs v) x
+                        -- levEnd
                     ) xs
 
 -- read-only table

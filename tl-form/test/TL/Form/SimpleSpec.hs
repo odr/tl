@@ -57,44 +57,44 @@ spec = describe "Simple rendering" $ do
         it "render Maybe Num as number" $ do
             renderText1 (toTLF (Tagged (Just 1)
                     :: Tagged '(Simple, Input '[]) (Maybe Int)))
-                `shouldBe` "<input value=\"1\" id=\"1\" type=\"number\">"
+                `shouldBe` "<input value=\"1\" type=\"number\">"
             renderText1 (toTLF (Tagged Nothing
                     :: Tagged '(Simple, Input '[]) (Maybe Float)))
-                `shouldBe` "<input id=\"1\" type=\"number\">"
+                `shouldBe` "<input type=\"number\">"
         it "render Maybe Bool as checkbox, checked if Just True; otherwise unchecked" $ do
             renderText1 (toTLF (Tagged (Just True)
                     :: Tagged '(Simple, Input '[]) (Maybe Bool)))
-                `shouldBe` "<input checked id=\"1\" type=\"checkbox\">"
+                `shouldBe` "<input checked type=\"checkbox\">"
             renderText1 (toTLF (Tagged (Just False)
                     :: Tagged '(Simple, Input '[]) (Maybe Bool)))
-                `shouldBe` "<input id=\"1\" type=\"checkbox\">"
+                `shouldBe` "<input type=\"checkbox\">"
             renderText1 (toTLF (Tagged Nothing
                     :: Tagged '(Simple, Input '[]) (Maybe Bool)))
-                `shouldBe` "<input id=\"1\" type=\"checkbox\">"
+                `shouldBe` "<input type=\"checkbox\">"
         it "render Maybe Text or Maybe String as text" $ do
             renderText1 (toTLF (Tagged (Just "test")
                     :: Tagged '(Simple, Input '[]) (Maybe String)))
-                `shouldBe` "<input value=\"test\" id=\"1\">"
+                `shouldBe` "<input value=\"test\">"
             renderText1 (toTLF (Tagged (Just "test")
                     :: Tagged '(Simple, Input '[]) (Maybe Text)))
-                `shouldBe` "<input value=\"test\" id=\"1\">"
+                `shouldBe` "<input value=\"test\">"
         it "render non-Maybe value as Just val" $ do
             renderText1 (toTLF (Tagged True
                     :: Tagged '(Simple, Input '[]) (Bool)))
-                `shouldBe` "<input checked id=\"1\" type=\"checkbox\">"
+                `shouldBe` "<input checked type=\"checkbox\">"
         context "when added InputAttribute ReadOnly" $ do
             it "added readonly to input field" $ do
                 renderText1 (toTLF (Tagged 1
                         :: Tagged '(Simple, Input '[ReadOnly]) Float))
-                    `shouldBe` "<input value=\"1.0\" id=\"1\" type=\"number\" readonly>"
+                    `shouldBe` "<input value=\"1.0\" type=\"number\" readonly>"
         it "added Any Attribute to input field" $ do
             renderText1 (toTLF (Tagged 1
                     :: Tagged '(Simple, Input '[ReadOnly, Attr "size" "120"]) Float))
-                `shouldBe` "<input size=\"120\" value=\"1.0\" id=\"1\" type=\"number\" readonly>"
+                `shouldBe` "<input size=\"120\" value=\"1.0\" type=\"number\" readonly>"
         it "render Hidden values" $ do
             renderText1 (toTLF (Tagged (Just "test")
                     :: Tagged '(Simple, Hidden) (Maybe Text)))
-                `shouldBe` "<input value=\"test\" id=\"1\" type=\"hidden\">"
+                `shouldBe` "<input value=\"test\" type=\"hidden\">"
     describe "Rendering for Choose value: (Simple, Choose vts ias)" $ do
         it "render type Choose with list of (value, text) pair as listbox (select tag)" $ do
             renderText1 (toTLF (Tagged Nothing
@@ -104,14 +104,14 @@ spec = describe "Simple rendering" $ do
                                (Maybe Int)
                     ))
                 `shouldBe` mconcat
-                    [ "<select id=\"1\"><option value=\"1\">One</option>"
+                    [ "<select><option value=\"1\">One</option>"
                     , "<option value=\"2\">Two</option></select>"
                     ]
         it "set 'selected' for corresponding value" $ do
             renderText1 (toTLF (Tagged (Just 2) :: Tagged
                 '(Simple, Choose '[ '("1","One"),'("2","Two")] '[]) (Maybe Int)))
                 `shouldBe` mconcat
-                    [ "<select id=\"1\"><option value=\"1\">One</option>"
+                    [ "<select><option value=\"1\">One</option>"
                     , "<option value=\"2\" selected>Two</option></select>"
                     ]
         it "disabled if added InputAttribute ReadOnly" $ do
@@ -123,7 +123,7 @@ spec = describe "Simple rendering" $ do
                             (Maybe Int)
                     ))
                 `shouldBe` mconcat
-                    [ "<select disabled id=\"1\"><option value=\"1\">One</option>"
+                    [ "<select disabled><option value=\"1\">One</option>"
                     , "<option value=\"2\" selected>Two</option></select>"
                     ]
         it "it added Any Attribute to select" $ do
@@ -135,13 +135,14 @@ spec = describe "Simple rendering" $ do
                                 (Maybe Int)
                         ))
                 `shouldBe` mconcat
-                    [ "<select size=\"200\" id=\"1\"><option value=\"1\">One</option>"
+                    [ "<select size=\"200\"><option value=\"1\">One</option>"
                     , "<option value=\"2\" selected>Two</option></select>"
                     ]
     describe "Rendering with label: (Simple, l::Symbol, t::HtmlTag)" $ do
         it "render field into label" $ do
-            renderText1 (toTLF (Tagged (Just "test") :: Tagged '(Simple, "test", Input '[]) (Maybe Text)))
-                `shouldBe` "<label>test: <input value=\"test\" id=\"1\"></label>"
+            renderText1 (toTLF (Tagged (Just "val") 
+                    :: Tagged '(Simple, "test", Input '[]) (Maybe Text)))
+                `shouldBe` "<label name=\"test\">test: <input value=\"val\"></label>"
             renderText1 (toTLF (Tagged (Just 2)
                     :: Tagged  '(Simple
                                 , "test", Choose '[ '("1","One"),'("2","Two")]
@@ -150,21 +151,37 @@ spec = describe "Simple rendering" $ do
                                 (Maybe Int)
                     ))
                 `shouldBe` mconcat
-                    [ "<label>test: <select disabled id=\"1\"><option value=\"1\">One</option>"
+                    [ "<label name=\"test\">test: <select disabled>"
+                    , "<option value=\"1\">One</option>"
                     , "<option value=\"2\" selected>Two</option></select></label>"
                     ]
         it "render Hidden field with label. In this case Label is hidden and field also has 'hidden' type" $ do
-            renderText1 (toTLF (Tagged (Just "test") :: Tagged '(Simple, "name", Hidden) (Maybe T.Text)))
-                `shouldBe` "<label hidden>name: <input value=\"test\" id=\"1\" type=\"hidden\"></label>"
-            renderText1 (toTLF (Tagged (Nothing) :: Tagged '(Simple, "name", Hidden) (Maybe T.Text)))
-                `shouldBe` "<label hidden>name: <input id=\"1\" type=\"hidden\"></label>"
-            renderText1 (toTLF (Tagged ("test") :: Tagged '(Simple, "name", Hidden) T.Text))
-                `shouldBe` "<label hidden>name: <input value=\"test\" id=\"1\" type=\"hidden\"></label>"
-
+            renderText1 (toTLF (Tagged (Just "test") 
+                    :: Tagged '(Simple, "name", Hidden) (Maybe T.Text)))
+                `shouldBe` mconcat
+                    [ "<label name=\"name\" hidden>name: "
+                    , "<input value=\"test\" type=\"hidden\"></label>"
+                    ]
+            renderText1 (toTLF (Tagged (Nothing) 
+                    :: Tagged '(Simple, "name", Hidden) (Maybe T.Text)))
+                `shouldBe` mconcat
+                    [ "<label name=\"name\" hidden>"
+                    , "name: <input type=\"hidden\"></label>"
+                    ]
+            renderText1 (toTLF (Tagged ("test") 
+                    :: Tagged '(Simple, "name", Hidden) T.Text))
+                `shouldBe` mconcat
+                    [ "<label name=\"name\" hidden>name: "
+                    , "<input value=\"test\" type=\"hidden\"></label>"
+                    ]
     describe "Rendering as table row: (Simple, (l::Symbol, t::HtmlTag))" $ do
         it "render table row" $ do
-            renderText1 (toTLF (Tagged (Just "test") :: Tagged '(Simple, '("test", Input '[])) (Maybe Text)))
-                `shouldBe` "<tr><td>test: </td><td><input value=\"test\" id=\"1\"></td></tr>"
+            renderText1 (toTLF (Tagged (Just "val") 
+                    :: Tagged '(Simple, '("test", Input '[])) (Maybe Text)))
+                `shouldBe` mconcat
+                    [ "<tr name=\"test\"><td>test: </td><td>"
+                    , "<input value=\"val\"></td></tr>"
+                    ]
             renderText1 (toTLF (Tagged (Just 2)
                 :: Tagged  '( Simple
                             ,  '( "test"
@@ -174,18 +191,30 @@ spec = describe "Simple rendering" $ do
                             (Maybe Int)
                 ))
                 `shouldBe` mconcat
-                    [ "<tr><td>test: </td><td><select disabled id=\"1\">"
+                    [ "<tr name=\"test\"><td>test: </td><td><select disabled>"
                     , "<option value=\"1\">One</option>"
                     , "<option value=\"2\" selected>Two</option>"
                     , "</select></td></tr>"
                     ]
         it "render Hidden field as row. In this case row is hidden and field also has 'hidden' type. But cells are not hidden" $ do
-            renderText1 (toTLF (Tagged (Just "test") :: Tagged '(Simple, '("name", Hidden)) (Maybe Text)))
-                `shouldBe` "<tr hidden><td>name: </td><td><input value=\"test\" id=\"1\" type=\"hidden\"></td></tr>"
-            renderText1 (toTLF (Tagged Nothing :: Tagged '(Simple, '("name", Hidden)) (Maybe Text)))
-                `shouldBe` "<tr hidden><td>name: </td><td><input id=\"1\" type=\"hidden\"></td></tr>"
-            renderText1 (toTLF (Tagged ("test") :: Tagged '(Simple, '("name", Hidden)) Text))
-                `shouldBe` "<tr hidden><td>name: </td><td><input value=\"test\" id=\"1\" type=\"hidden\"></td></tr>"
+            renderText1 (toTLF (Tagged (Just "test") 
+                    :: Tagged '(Simple, '("name", Hidden)) (Maybe Text)))
+                `shouldBe` mconcat
+                    [ "<tr name=\"name\" hidden><td>name: </td>"
+                    , "<td><input value=\"test\" type=\"hidden\"></td></tr>"
+                    ]
+            renderText1 (toTLF (Tagged Nothing 
+                    :: Tagged '(Simple, '("name", Hidden)) (Maybe Text)))
+                `shouldBe` mconcat
+                    [ "<tr name=\"name\" hidden><td>name: </td><td>"
+                    , "<input type=\"hidden\"></td></tr>"
+                    ]
+            renderText1 (toTLF (Tagged ("test") 
+                    :: Tagged '(Simple, '("name", Hidden)) Text))
+                `shouldBe` mconcat
+                    [ "<tr name=\"name\" hidden><td>name: </td><td>"
+                    , "<input value=\"test\" type=\"hidden\"></td></tr>"
+                    ]
     describe "Rendering record as table: (Simple, '[ '(l::Symbol, t::HtmlTag)])" $ do
         it "render empty table (only for Maybe ())" $ do
             renderText1 (toTLF (Tagged (Just ()) :: TRS '[] ())) `shouldBe` ""
@@ -196,10 +225,10 @@ spec = describe "Simple rendering" $ do
                             (Text,(Double,()))
                         ))
                 `shouldBe` mconcat
-                    [ "<table><tr hidden><td>one: </td><td>"
-                    , "<input value=\"xxx\" id=\"1\" type=\"hidden\"></td></tr><tr>"
-                    , "<td>two: </td><td><input value=\"1.0\" id=\"2\" type=\"number\">"
-                    , "</td></tr></table>"
+                    [ "<table><tr name=\"one\" hidden><td>one: </td><td>"
+                    , "<input value=\"xxx\" type=\"hidden\"></td></tr>"
+                    , "<tr name=\"two\"><td>two: </td><td>"
+                    , "<input value=\"1.0\" type=\"number\"></td></tr></table>"
                     ]
             renderText1 (
                 toTLF (Tagged Nothing
@@ -207,9 +236,10 @@ spec = describe "Simple rendering" $ do
                             (Text,(Double,()))
                         ))
                 `shouldBe` mconcat
-                    [ "<table><tr hidden><td>one: </td><td>"
-                    , "<input id=\"1\" type=\"hidden\"></td></tr><tr><td>two: </td>"
-                    , "<td><input id=\"2\" type=\"number\"></td></tr></table>"
+                    [ "<table><tr name=\"one\" hidden><td>one: </td><td>"
+                    , "<input type=\"hidden\"></td></tr>"
+                    , "<tr name=\"two\"><td>two: </td><td>"
+                    , "<input type=\"number\"></td></tr></table>"
                     ]
         it "render non-empty table  for (x,xs)" $ do
             renderText1 (
@@ -220,10 +250,10 @@ spec = describe "Simple rendering" $ do
                                         ]) (Text,(Double,()))
                         ))
                 `shouldBe` mconcat
-                    [ "<table><tr hidden><td>one: </td><td>"
-                    , "<input value=\"xxx\" id=\"1\" type=\"hidden\"></td></tr><tr>"
-                    , "<td>two: </td><td><input value=\"1.0\" id=\"2\" type=\"number\">"
-                    , "</td></tr></table>"
+                    [ "<table><tr name=\"one\" hidden><td>one: </td><td>"
+                    , "<input value=\"xxx\" type=\"hidden\"></td></tr>"
+                    , "<tr name=\"two\"><td>two: </td><td>"
+                    , "<input value=\"1.0\" type=\"number\"></td></tr></table>"
                     ]
             renderText1 (
                 toTLF (Tagged ("xxx",(1,()))
@@ -234,11 +264,11 @@ spec = describe "Simple rendering" $ do
                                     ) (Text,(Double,()))
                         ))
                 `shouldBe` mconcat
-                    [ "<table><tr><td>one: </td><td><select id=\"1\">"
+                    [ "<table><tr name=\"one\"><td>one: </td><td><select>"
                     , "<option value=\"1\">One</option>"
                     , "<option value=\"2\">Two</option></select></td></tr>"
-                    , "<tr><td>two: </td><td><input value=\"1.0\" id=\"2\" type=\"number\">"
-                    , "</td></tr></table>"
+                    , "<tr name=\"two\"><td>two: </td><td>"
+                    , "<input value=\"1.0\" type=\"number\"></td></tr></table>"
                     ]
     describe "Rendering list for input as table: (Simple, '[ '(l::Symbol, t::HtmlTag)]) [x]" $ do
         it "render list" $ do
@@ -252,17 +282,18 @@ spec = describe "Simple rendering" $ do
                                     ) [(Text,(Text,(Int,())))]
                         ))
                 `shouldBe` mconcat
-                        [ "<table><tr><th>i1</th><th>c1</th><th>i2</th></tr>"
-                        , "<tr><td><input value=\"v1\" id=\"1\"></td><td>"
-                        , "<select id=\"2\"><option value=\"1\">One</option>"
+                        [ "<table><tr><th name=\"i1\">i1</th><th name=\"c1\">c1"
+                        , "</th><th name=\"i2\">i2</th></tr>"
+                        , "<tr><td name=\"i1\"><input value=\"v1\"></td><td name=\"c1\">"
+                        , "<select><option value=\"1\">One</option>"
                         , "<option value=\"2\" selected>Two</option>"
-                        , "</select></td><td>"
-                        , "<input value=\"1\" id=\"3\" type=\"number\" readonly></td></tr>"
-                        , "<tr><td><input value=\"v2\" id=\"4\"></td><td>"
-                        , "<select id=\"5\"><option value=\"1\" selected>One</option>"
+                        , "</select></td><td name=\"i2\">"
+                        , "<input value=\"1\" type=\"number\" readonly></td></tr>"
+                        , "<tr><td name=\"i1\"><input value=\"v2\"></td><td name=\"c1\">"
+                        , "<select><option value=\"1\" selected>One</option>"
                         , "<option value=\"2\">Two</option>"
-                        , "</select></td><td>"
-                        , "<input value=\"2\" id=\"6\" type=\"number\" readonly>"
+                        , "</select></td><td name=\"i2\">"
+                        , "<input value=\"2\" type=\"number\" readonly>"
                         , "</td></tr></table>"
                         ]
     describe "Rendering list for output as table: (Simple, '[Symbol]) [x]" $ do
@@ -273,9 +304,11 @@ spec = describe "Simple rendering" $ do
                                     [(Text,(Text,(Int,())))]
                         ))
                 `shouldBe` mconcat
-                    [ "<table><tr><th>i1</th><th>c1</th><th>i2</th></tr>"
-                    , "<tr><td>v1</td><td>2</td><td>1</td></tr>"
-                    , "<tr><td>v2</td><td>1</td><td>2</td></tr></table>"
+                    [ "<table><tr><th name=\"i1\">i1</th><th name=\"c1\">c1"
+                    , "</th><th name=\"i2\">i2</th></tr>"
+                    , "<tr><td name=\"i1\">v1</td><td name=\"c1\">2</td>"
+                    , "<td name=\"i2\">1</td></tr><tr><td name=\"i1\">v2</td>"
+                    , "<td name=\"c1\">1</td><td name=\"i2\">2</td></tr></table>"
                     ]
     describe "Records and tables can be composed" $ do
         it "render list of tables one after another" $ do
@@ -307,29 +340,39 @@ spec = describe "Simple rendering" $ do
                                  ,())))
                             ))
                     `shouldBe` mconcat
-                        [ "<table><tr><th>i1</th><th>c1</th><th>i2</th></tr>"
-                        , "<tr><td>v1</td><td>2</td><td><input value=\"1\" "
-                        , "id=\"1\" type=\"number\" readonly></td></tr><tr>"
-                        , "<td>v2</td><td>1</td><td><input value=\"2\" id=\"2\""
+                        [ "<table>"
+                        , "<tr><th name=\"i1\">i1</th><th name=\"c1\">c1"
+                        , "</th><th name=\"i2\">i2</th></tr>"
+                        , "<tr><td name=\"i1\">v1</td><td name=\"c1\">2</td>"
+                        , "<td name=\"i2\"><input value=\"1\" "
+                        , "type=\"number\" readonly></td></tr>"
+                        , "<tr><td name=\"i1\">v2</td><td name=\"c1\">1</td>"
+                        , "<td name=\"i2\"><input value=\"2\""
                         , " type=\"number\" readonly></td></tr></table>"
-                        , "<table><tr><th>i1</th><th>c1</th><th>i2</th>"
-                        , "<th>check</th></tr><tr><td><input value=\"v1\" id=\"3\">"
-                        , "</td><td><select id=\"4\"><option value=\"1\">One"
+                        
+                        , "<table>"
+                        , "<tr><th name=\"i1\">i1</th><th name=\"c1\">c1"
+                        , "</th><th name=\"i2\">i2</th><th name=\"check\">check"
+                        , "</th></tr>"
+                        , "<tr><td name=\"i1\"><input value=\"v1\">"
+                        , "</td><td name=\"c1\"><select><option value=\"1\">One"
                         , "</option><option value=\"2\" selected>Two</option>"
-                        , "</select></td><td><input value=\"1\" id=\"5\" "
-                        , "type=\"number\" readonly></td><td><input id=\"6\" "
-                        , "type=\"checkbox\"></td></tr><tr><td><input "
-                        , "value=\"v2\" id=\"7\"></td><td><select id=\"8\">"
+                        , "</select></td><td name=\"i2\"><input value=\"1\" "
+                        , "type=\"number\" readonly></td><td name=\"check\">"
+                        , "<input type=\"checkbox\"></td></tr>"
+                        , "<tr><td name=\"i1\"><input value=\"v2\"></td>"
+                        , "<td name=\"c1\"><select>"
                         , "<option value=\"1\" selected>One</option>"
-                        , "<option value=\"2\">Two</option></select></td><td>"
-                        , "<input value=\"2\" id=\"9\" type=\"number\" readonly>"
-                        , "</td><td><input checked id=\"10\" type=\"checkbox\">"
-                        , "</td></tr></table>"
-                        , "<table><tr><td>one: </td><td><select id=\"11\">"
+                        , "<option value=\"2\">Two</option></select></td>"
+                        , "<td name=\"i2\">"
+                        , "<input value=\"2\" type=\"number\" readonly>"
+                        , "</td><td name=\"check\">"
+                        , "<input checked type=\"checkbox\"></td></tr></table>"
+                        , "<table><tr name=\"one\"><td>one: </td><td><select>"
                         , "<option value=\"1\">One</option><option value=\"2\">"
-                        , "Two</option></select></td></tr><tr><td>two: </td><td>"
-                        , "<input value=\"1.0\" id=\"12\" type=\"number\">"
-                        , "</td></tr></table>"
+                        , "Two</option></select></td></tr><tr name=\"two\">"
+                        , "<td>two: </td><td><input value=\"1.0\" "
+                        , "type=\"number\"></td></tr></table>"
                         ]
         it "render table as element" $ do
             renderText1 (
@@ -348,18 +391,24 @@ spec = describe "Simple rendering" $ do
                             ) [(Text,((Text,(Bool,())),(Int,())))]
                         ))
                     `shouldBe` mconcat 
-                        [ "<table><tr><th>i1</th><th>c1</th><th>i2</th></tr>"
-                        , "<tr><td><input value=\"v1\" id=\"1\"></td><td>"
-                        , "<table><tr><td>name: </td><td><input value=\"rec\" "
-                        , "id=\"2\"></td></tr><tr><td>c1: </td><td><input "
-                        , "id=\"3\" type=\"checkbox\"></td></tr></table></td>"
-                        , "<td><input value=\"1\" id=\"4\" type=\"number\" "
-                        , "readonly></td></tr><tr><td><input value=\"v2\" "
-                        , "id=\"5\"></td><td><table><tr><td>name: </td><td>"
-                        , "<input value=\"???\" id=\"6\"></td></tr><tr><td>"
-                        , "c1: </td><td><input checked id=\"7\" type=\"checkbox\">"
-                        , "</td></tr></table></td><td><input value=\"2\" "
-                        , "id=\"8\" type=\"number\" readonly></td></tr></table>"
+                        [ "<table>"
+                        , "<tr><th name=\"i1\">i1</th><th name=\"c1\">c1"
+                        , "</th><th name=\"i2\">i2</th></tr>"
+                        , "<tr><td name=\"i1\"><input value=\"v1\"></td>"
+                        , "<td name=\"c1\">"
+                        , "<table><tr name=\"c1-name\"><td>name: </td><td>"
+                        , "<input value=\"rec\"></td></tr><tr name=\"c1-c1\">"
+                        , "<td>c1: </td><td><input "
+                        , "type=\"checkbox\"></td></tr></table></td>"
+                        , "<td name=\"i2\"><input value=\"1\" type=\"number\" "
+                        , "readonly></td></tr>"
+                        , "<tr><td name=\"i1\"><input value=\"v2\">"
+                        , "</td><td name=\"c1\"><table><tr name=\"c1-name\">"
+                        , "<td>name: </td><td><input value=\"???\"></td></tr>"
+                        , "<tr name=\"c1-c1\"><td>c1: </td><td><input checked "
+                        , "type=\"checkbox\"></td></tr></table></td>"
+                        , "<td name=\"i2\"><input value=\"2\" type=\"number\" "
+                        , "readonly></td></tr></table>"
                         ]
                                
 

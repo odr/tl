@@ -25,6 +25,7 @@ library
                         , transformers
                         , tl-base
                         , safe
+                        , containers
 
   default-language:    Haskell2010
 
