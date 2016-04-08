@@ -23,12 +23,12 @@ import Data.Functor.Identity
 import qualified Data.Map as M
 
 data HtmlTag
-    = None
-    | Hidden
-    | Input  [InputAttr]
-    | Choose [(Symbol,Symbol)] [InputAttr]
-    | Tab    [(Symbol,HtmlTag)]
-    | Rec    [(Symbol,HtmlTag)]
+    = None                                  -- ^ plain html
+    | Hidden                                -- ^ <input type="hidden">
+    | Input  [InputAttr]                    -- ^ <input>
+    | Choose [(Symbol,Symbol)] [InputAttr]  -- ^ <select><option>...</select
+    | Tab    [(Symbol,HtmlTag)]             -- ^ included table
+    | Rec    [(Symbol,HtmlTag)]             -- ^ included record as table
 
 data InputAttr = ReadOnly | Attr Symbol Symbol
 

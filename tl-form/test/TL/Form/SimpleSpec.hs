@@ -371,7 +371,7 @@ spec = describe "Simple rendering" $ do
                             ]
                         :: TTable '[ '("i1", Input '[])
                                    , '("c1", Rec '[ '("name", Input '[])
-                                                  , '("c1", Input '[])
+                                                  , '("c1"  , Input '[])
                                                   ])
                                    , '("i2", Input '[ReadOnly])
                                    ]
