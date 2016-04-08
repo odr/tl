@@ -25,21 +25,36 @@ import qualified Data.Map as M
 data HtmlTag
     = None
     | Hidden
-    | Input [InputAttr]
+    | Input  [InputAttr]
     | Choose [(Symbol,Symbol)] [InputAttr]
-    | Tab [(Symbol,HtmlTag)]
+    | Tab    [(Symbol,HtmlTag)]
+    | Rec    [(Symbol,HtmlTag)]
 
 data InputAttr = ReadOnly | Attr Symbol Symbol
 
-data JsData
-    = JsData    { jsdName :: T.Text
-                , jsdNum :: Int
-                }
+data FormKind 
+    = LblTag        Symbol HtmlTag        -- ^ label with tag
+    | RecAsTab      [(Symbol, HtmlTag)]   -- ^ editable record (as two-column table: label - input)
+    | Table         [(Symbol, HtmlTag)]   -- ^ editable table
+    | TableReadOnly [Symbol]              -- ^ read-only table
+    | Group         [FormKind] -- ^ composition of tables and records
+
+data FormInternal
+    = RowLblTag     Symbol HtmlTag        -- ^ row with two fields (label and tag)
+    | RecInternal   [(Symbol, HtmlTag)]   -- ^ list of rows <label - input>
+    | TableHeads    [Symbol]              -- ^ sequence of <th>
+    | TableRow      [(Symbol, HtmlTag)]   -- ^ editable table row
+
+-- data JsData
+--     = JsData    { jsdName :: T.Text
+--                 , jsdNum :: Int
+--                 }
 
 data StateTLF = StateTLF
     { stlfPath :: [T.Text]
     , stlfNameCnt :: M.Map [T.Text] Int
     } deriving (Show)
+    
 instance Monoid StateTLF where
     mempty = StateTLF mempty mempty
     (StateTLF p1 m1) `mappend` (StateTLF p2 m2) 

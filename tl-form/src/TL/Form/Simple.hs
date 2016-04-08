@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -7,7 +8,8 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-module TL.Form.Simple(Simple) where
+{-# LANGUAGE PolyKinds #-}
+module TL.Form.Simple where
 
 import Lucid
 import qualified Data.Text as T
@@ -23,6 +25,7 @@ import TL.Form.Types
 -- | Style of simple rendering.
 data Simple
 
+type TSimple (a::k) = Tagged '(Simple, a)
 --------------- output-only values ------------------
 instance {-# OVERLAPPABLE #-} ToHtmlText a => ToHtml (Tagged Simple a) where
     toHtml = toHtml . untag . fmap toHtmlText
@@ -51,28 +54,29 @@ instance ToHtml (Tagged Simple a) => ToHtml (Maybe (Tagged Simple a))
     toHtmlRaw = toHtml
 
 ----------------------- Rendering for Input --------------
-type RPTH a       = Tagged '(Simple, Hidden      ) (Maybe a)
-type RPTI as a    = Tagged '(Simple, Input as    ) (Maybe a)
-type RPTC vs ps a = Tagged '(Simple, Choose vs ps) (Maybe a)
+type INone         = TSimple None
+type IHidden       = TSimple Hidden           -- (Maybe a)
+type IInput as     = TSimple (Input as)       -- (Maybe a)
+type IChoose vs ps = TSimple (Choose vs ps)   -- (Maybe a)
 
-instance ToHtml (Tagged Simple v) =>  ToTLF (Tagged '(Simple, None) v) 
+instance ToHtml (Tagged Simple v) =>  ToTLF (INone v) 
   where
     toTLF x = toHtml (retag x :: Tagged Simple v)
 
 -- Input field (text)
 instance {-# OVERLAPPABLE #-} (ToHtmlText a, GetAttrs (Input as))
-    => ToTLF (RPTI as a)
+    => ToTLF (IInput as (Maybe a))
   where
-    toTLF (Tagged b :: RPTI as a)
+    toTLF (Tagged b :: IInput as (Maybe a))
         = input_
             . maybe id ((:) . value_ . toHtmlText) b
             $ getAttrs (Proxy :: Proxy (Input as))
             
 -- Input field (checkbox)            
 instance {-# OVERLAPPING #-} (GetAttrs (Input as))
-    => ToTLF (RPTI as Bool)
+    => ToTLF (IInput as (Maybe Bool))
   where
-    toTLF    (Tagged b :: RPTI as Bool)
+    toTLF (Tagged b)
         = input_
             . (if b == Just True then (checked_ :) else id)
             . (type_ "checkbox" :)
@@ -80,32 +84,32 @@ instance {-# OVERLAPPING #-} (GetAttrs (Input as))
 
 -- | Input field for numbers
 inputNum :: (Num a, GetAttrs (Input as), ToHtmlText a, Monad m)
-    => RPTI as a -> MonadTLF m ()
-inputNum (Tagged v :: RPTI as a)
+    => IInput as (Maybe a) -> MonadTLF m ()
+inputNum (Tagged v :: IInput as (Maybe a))
     = input_ . maybe id ((:) . value_ . toHtmlText) v
     $ type_ "number" : getAttrs (Proxy :: Proxy (Input as))
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Int)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (IInput as (Maybe Int))
   where
     toTLF = inputNum
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Integer)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (IInput as (Maybe Integer))
   where
     toTLF = inputNum
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Float)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (IInput as (Maybe Float))
   where
     toTLF = inputNum
 
-instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (RPTI as Double)
+instance {-# OVERLAPPING #-} (GetAttrs (Input as)) => ToTLF (IInput as (Maybe Double))
   where
     toTLF = inputNum
 
 ------------------- Rendering for Choose value ------------
 instance (ToHtmlText a, Names2 vs, GetAttrs (Choose vs ps))
-    => ToTLF (RPTC vs ps a)
+    => ToTLF (IChoose vs ps (Maybe a))
   where
-    toTLF (Tagged x :: RPTC vs ps a)
+    toTLF (Tagged x :: IChoose vs ps (Maybe a))
         = select_
             (mapM_  (\(v,n) -> with (option_ $ fromString n)
                                     (f v [value_ (fromString v)])
@@ -118,161 +122,172 @@ instance (ToHtmlText a, Names2 vs, GetAttrs (Choose vs ps))
             | otherwise                 = id
 
 ------------------- Rendering for Hidden value ------------
-instance ToHtmlText a => ToTLF (RPTH a) where
-    toTLF (Tagged v :: RPTH a)
+instance ToHtmlText a => ToTLF (IHidden (Maybe a)) where
+    toTLF (Tagged v :: IHidden (Maybe a))
         = input_
             (maybe id ((:) . value_ . toHtmlText) v [type_ "hidden"])
 
 ------------------- Non-maybe ---------------------------
-type THV (h :: HtmlTag) = Tagged '(Simple, h)
-
-instance {-# OVERLAPPABLE #-} ToTLF (THV h (Maybe v)) => ToTLF (THV h v) where
+instance {-# OVERLAPPABLE #-} ToTLF (TSimple h (Maybe v)) 
+    => ToTLF (TSimple h v) 
+  where
     toTLF = toTLF . fmap Just
 
 ----------------------------------
 -- just text
-type TN    (n::Symbol)   = Tagged '(Simple,n) ()
+type TN (n::Symbol) = TSimple n ()
 -- sequence of <th>
-type TNS   (n::[Symbol]) = Tagged '(Simple,n)
+type TTableHeads ns = TSimple (TableHeads ns)
 -- label with tag
-type TNHV  (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, n, h)
+type TLblTag n h    = TSimple (LblTag n h)
 -- row with two fields (label and tag)
-type T_NHV (n :: Symbol) (h :: HtmlTag) = Tagged '(Simple, '(n, h))
+type TRowLblTag n h = TSimple (RowLblTag n h)
 
 ---------------- Rendering with label -----------------------
 instance KnownSymbol n => ToHtml (TN n) where
     toHtml _  = fromString $ symbolVal' (proxy# :: Proxy# n)
     toHtmlRaw = toHtml
 
-instance ToTLF (TNS '[] ()) where
+instance ToTLF (TTableHeads '[] ()) where
     toTLF _  = return ()
 
-instance (ToHtml (TN n), ToTLF (TNS ns ())) => ToTLF (TNS (n ': ns) ()) where
+instance (ToHtml (TN n), ToTLF (TTableHeads ns ())) => ToTLF (TTableHeads (n ': ns) ()) where
     toTLF _ = do
         withName tn $ th_ tn
-        toTLF (Tagged () :: TNS ns ())
+        toTLF (Tagged () :: TTableHeads ns ())
       where
         tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
         tn = toHtml (Tagged () :: TN n)
 
-labeledHtml :: (ToTLF (THV h v), ToHtml (TN n), Monad m)
-            => TNHV n h v -> MonadTLF m ()
-labeledHtml (x :: TNHV n h v) = withName tn $
+labeledHtml :: (ToTLF (TSimple h v), ToHtml (TN n), Monad m)
+            => TLblTag n h v -> MonadTLF m ()
+labeledHtml (x :: TLblTag n h v) = withName tn $
     label_ $ do
         tn >> ": "
-        toTLF (retag x :: THV h v)
+        toTLF (retag x :: TSimple h v)
   where
     tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
     tn = toHtml (Tagged () :: TN n)
          
 
-instance {-# OVERLAPPABLE #-} (ToTLF (THV h v), ToHtml (TN n))
-    => ToTLF (TNHV n h v)
+instance {-# OVERLAPPABLE #-} (ToTLF (TSimple h v), ToHtml (TN n))
+    => ToTLF (TLblTag n h v)
   where
     toTLF    = labeledHtml
 
 instance {-# OVERLAPPING #-} (ToTLF (Tagged '(Simple, Hidden) v), ToHtml (TN n))
-    => ToTLF (Tagged '(Simple, (n :: Symbol), Hidden) v)
+    => ToTLF (TLblTag n Hidden v)
   where
     toTLF x = labeledHtml x `with` [hidden_ ""]
 
 ---------------- Rendering as table raw -----------------------
-rowHtml :: (ToTLF (THV h v), ToHtml (TN n), Monad m) => T_NHV n h v -> MonadTLF m ()
-rowHtml (x :: T_NHV n h v) = withName tn $ tr_ $ do
+rowHtml :: (ToTLF (TSimple h v), ToHtml (TN n), Monad m) 
+    => TRowLblTag n h v -> MonadTLF m ()
+rowHtml (x :: TRowLblTag n h v) = withName tn $ tr_ $ do
     td_ $ tn >> ": "
-    td_ $ toTLF (retag x :: THV h v)
+    td_ $ toTLF (retag x :: TSimple h v)
   where
     tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
     tn = toHtml (Tagged () :: TN n)
 
-instance {-# OVERLAPPABLE #-} (ToTLF (THV h v), ToHtml (TN n))
-    => ToTLF (T_NHV n h v)
+instance {-# OVERLAPPABLE #-} (ToTLF (TSimple h v), ToHtml (TN n))
+    => ToTLF (TRowLblTag n h v)
   where
     toTLF = rowHtml
 
 instance {-# OVERLAPPING #-}
     (ToTLF (Tagged '(Simple, Hidden) v), ToHtml (TN n))
-    => ToTLF (Tagged '(Simple, '((n :: Symbol), Hidden)) v)
+    => ToTLF (TRowLblTag n Hidden v)
   where
     toTLF x = rowHtml x `with` [hidden_ ""]
 
 ----------------- Rendering table -------------------------------
 -- editable record (as two-column table: label - input)
-type TRS  (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, rs) (Maybe v)
--- editable record internal (as two-column table: label - input)
-type TRSF (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, False, rs) (Maybe v)
--- editable table 
-type TRSS (rs :: [(Symbol, HtmlTag)]) v = Tagged '(Simple, rs) [v]
--- editable table row
-type THS  (rs :: [(Symbol, HtmlTag)]) = Tagged '(Simple, True, rs)
+type TRecAsTab      rs = TSimple (RecAsTab rs)    -- (Maybe v)
+type TRecInternal   rs = TSimple (RecInternal rs) -- (Maybe v)
+type TTable         rs = TSimple (Table rs)       -- [v]
+type TTableRow      rs = TSimple (TableRow rs)
+type TTableReadOnly rs = TSimple (TableReadOnly rs)
 
-instance ToTLF (TRS '[] ())
+instance ToTLF (TRecAsTab '[] (Maybe ()))
   where
     toTLF    _ = return ()
 
-instance ToTLF (TRSF '[] ())
+instance ToTLF (TRecInternal '[] (Maybe ()))
   where
     toTLF    _ = return ()
 
-instance ( ToTLF (T_NHV n h (Maybe v)), ToTLF (TRSF rs vs))
-    => ToTLF (TRSF ('(n, h) ': rs) (v,vs))
+instance (ToTLF (TRowLblTag n h (Maybe v)), ToTLF (TRecInternal rs (Maybe vs)))
+    => ToTLF (TRecInternal ('(n, h) ': rs) (Maybe (v,vs)))
   where
     toTLF x = do
-        toTLF (retag $ fmap (fmap fst) x :: T_NHV n h (Maybe v))
-        toTLF (retag $ fmap (fmap snd) x :: TRSF rs vs)
+        toTLF (retag $ fmap (fmap fst) x :: TRowLblTag n h (Maybe v))
+        toTLF (retag $ fmap (fmap snd) x :: TRecInternal rs (Maybe vs))
 
-instance {-# OVERLAPPING #-} ToTLF (TRSF (r ': rs) xs) => ToTLF (TRS (r ': rs) xs)
+instance {-# OVERLAPPING #-} ToTLF (TRecInternal (r ': rs) (Maybe xs))
+    => ToTLF (TRecAsTab (r ': rs) (Maybe xs))
   where
     toTLF zs = do
-        table_ $ toTLF (retag zs :: TRSF (r ': rs) xs)
+        table_ $ toTLF (retag zs :: TRecInternal (r ': rs) (Maybe xs))
 
-instance {-# OVERLAPPABLE #-} ToTLF (TRS rs xs) => ToTLF (Tagged '(Simple, rs) xs)
+instance {-# OVERLAPPABLE #-} ToTLF (TRecAsTab rs (Maybe xs)) 
+    => ToTLF (TRecAsTab rs xs)
   where
     toTLF    = toTLF . fmap Just
 
-instance ToTLF (THS '[] ()) where
+instance ToTLF (TTableRow '[] ()) where
     toTLF _ = return ()
 
-instance (ToTLF (THV r v), ToTLF (THS rs vs), ToHtml (TN n)) 
-    => ToTLF (THS ( '(n,r) ': rs) (v,vs))
+instance (ToTLF (TSimple r v), ToTLF (TTableRow rs vs), ToHtml (TN n)) 
+    => ToTLF (TTableRow ( '(n,r) ': rs) (v,vs))
   where
     toTLF x = do
-        withName tn $ td_ $ toTLF (retag $ fmap fst x :: THV r v)
-        toTLF (retag $ fmap snd x :: THS rs vs)
+        withName tn $ td_ $ toTLF (retag $ fmap fst x :: TSimple r v)
+        toTLF (retag $ fmap snd x :: TTableRow rs vs)
       where
         tn :: (ToHtml (TN n), Monad m) => MonadTLF m ()
         tn = toHtml (Tagged () :: TN n)
 
-instance (ToTLF (TNS (LFst rs) ()), ToTLF (THS rs v)) => ToTLF (TRSS rs v)
+instance (ToTLF (TTableHeads (LFst rs) ()), ToTLF (TTableRow rs v)) 
+    => ToTLF (TTable rs [v])
   where
     toTLF (Tagged xs)
         = do
             table_ $ do
-                tr_ $ toTLF (Tagged () :: TNS (LFst rs) ())
+                tr_ $ toTLF (Tagged () :: TTableHeads (LFst rs) ())
                 
                 mapM_ (\x -> do
                         -- levBegin
-                        tr_ $ toTLF $ (Tagged :: v -> THS rs v) x
+                        tr_ $ toTLF $ (Tagged :: v -> TTableRow rs v) x
                         -- levEnd
                     ) xs
 
 -- read-only table
-instance ToTLF (Tagged '(Simple, ZipK2 rs None) [v]) => ToTLF (TNS rs [v])
+type family AddNone (a :: [Symbol]) :: [(Symbol,HtmlTag)] where
+    AddNone '[] = '[]
+    AddNone (a ': as) = '(a,None) ': AddNone as
+
+instance ToTLF (TTable (AddNone rs) vs) => ToTLF (TTableReadOnly rs vs)
   where
-    toTLF x = toTLF (retag x :: Tagged '(Simple, ZipK2 rs None) [v])
+    toTLF x = toTLF (retag x :: TTable (AddNone rs) vs)
  
 -- composition
-instance ToTLF (Tagged '(Simple, ('[]::[[(Symbol,HtmlTag)]])) ()) where
+type TGroup rss   = TSimple (Group rss)
+
+instance ToTLF (TGroup '[] ()) where
     toTLF _ = mempty
     
-instance (ToTLF (Tagged '(Simple, rs) vs), ToTLF (Tagged '(Simple, rss) vss)) 
-    => ToTLF (Tagged '(Simple, rs ': (rss  :: [[(Symbol, HtmlTag)]])) (vs,vss)) 
+instance (ToTLF (TSimple rs vs), ToTLF (TGroup rss vss)) 
+    => ToTLF (TGroup (rs ': rss) (vs,vss)) 
   where
     toTLF x = do
-        toTLF (retag $ fmap fst x :: Tagged '(Simple, rs) vs)
-        toTLF (retag $ fmap snd x :: Tagged '(Simple, rss) vss)
+        toTLF (retag $ fmap fst x :: TSimple rs vs)
+        toTLF (retag $ fmap snd x :: TGroup rss vss)
         
-instance ToTLF (Tagged '(Simple, (rs :: [(Symbol, HtmlTag)])) v)
-    => ToTLF (Tagged '(Simple, Tab rs) v)
+instance ToTLF (TTable rs vs) => ToTLF (TSimple (Tab rs) vs)
   where
-    toTLF x = toTLF (retag x :: Tagged '(Simple, (rs :: [(Symbol, HtmlTag)])) v)
+    toTLF x = toTLF (retag x :: TSimple (Table rs) vs)
+
+instance ToTLF (TRecAsTab rs vs) => ToTLF (TSimple (Rec rs) vs)
+  where
+    toTLF x = toTLF (retag x :: TRecAsTab rs vs)
