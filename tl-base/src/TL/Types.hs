@@ -34,8 +34,7 @@ import Data.Type.Bool(type (&&))
 import Lens.Micro(Lens')
 import GHC.Exts(Constraint)
 import qualified Data.Text as T
-import Data.Aeson(ToJSON(..), FromJSON(..), Value(..)
-                , fromJSON, Result(..), object, (.:))
+import Data.Aeson(ToJSON(..), FromJSON(..), Value(..), object)
 import Data.Aeson.Types(Parser)
 import Data.Tagged
 import Data.Maybe(maybeToList, listToMaybe)
@@ -100,7 +99,7 @@ type family LFst (a :: [(k1,k2)]) :: [k1] where
     LFst '[] = '[]
     LFst ('(a,b) ': xs) = a ': LFst xs
 
-type family LSnd (a :: [(k1,k2)]) :: [ks] where
+type family LSnd (a :: [(k1,k2)]) :: [k2] where
     LSnd '[] = '[]
     LSnd ('(a,b) ': xs) = b ': LSnd xs
 
@@ -110,7 +109,7 @@ pLFst (_::Proxy a) = Proxy :: Proxy (LFst a)
 type family ZipK2 (a :: [k1]) (b::k2) :: [(k1,k2)] where
     ZipK2 '[] b = '[]
     ZipK2 (a ': as) b = '(a,b) ': ZipK2 as b
-    
+
 type family ContainNames (a :: [(k,k2)]) (b :: [k]) :: Constraint where
     ContainNames as '[] = ()
     ContainNames ('(a,v) ': as) '[a] = ()
@@ -189,7 +188,60 @@ class ToPairs (ra::k) ar | ra -> ar
   where
     toPairs :: Tagged ra ar -> [(T.Text, Value)] -> [(T.Text, Value)]
 
-instance ToJSON (Tagged '(r,b,a,ar,kr,dr) ar) => ToJSON (Tagged '(r,b,a,ar,kr,dr) [ar])
+{-
+instance ToPairs '(Plain,'[]) () where
+    toPairs _ = id
+
+instance    ( KnownSymbol n
+            , ToPairs '(Plain,nvs) vr
+            , ToJSON v
+            )
+    => ToPairs '(Plain, (n:::v) ': nvs) (v,vr)
+  where
+    toPairs (Tagged (v,vs))
+        = ((T.pack $ symbolVal' (proxy# :: Proxy# n),  toJSON v) :)
+        . toPairs (Tagged vs :: Tagged '(Plain, nvs) vr)
+
+instance FromJSON (Tagged '(Plain,'[]) ())
+  where
+    parseJSON (Object v)
+        | HM.null v = return (Tagged () :: Tagged '(Plain,'[]) ())
+        | otherwise = mzero
+    parseJSON _     = mzero
+
+instance    ( KnownSymbol n
+            , FromJSON v
+            , FromJSON (Tagged '(Plain, nvs) vr)
+            )
+            => FromJSON (Tagged '(Plain, ((n ::: v) ': nvs)) (v,vr))
+  where
+    parseJSON (Object hm) = do
+        (Tagged rest :: Tagged '(r, nvs) vr) <- parseJSON (Object hm')
+        fmap (Tagged . (,rest)) $ hm .: name
+      where
+        name = T.pack (symbolVal' (proxy# :: Proxy# n))
+        hm' = HM.delete name hm
+-}
+-- (x,y) чтобы не перекрываться с [x]
+instance ToPairs '(r, a) (x,y) => ToJSON (Tagged '(r,a) (x,y)) where
+    toJSON = object . flip toPairs []
+instance  ToJSON (Tagged '(r,a) (x,y))
+        => ToJSON (Tagged '(r,b,a,ar,kr,dr) (x,y)) where
+    toJSON = toJSON
+        . (retag :: Tagged '(r,b,a,ar,kr,dr) (x,y)
+                    -> Tagged '(r,a) (x,y)
+          )
+
+-- instance (ToJSON x) => ToJSON (Tagged r x) where
+--     toJSON = toJSON . untag
+-- instance (FromJSON x) => FromJSON (Tagged r x) where
+--     parseJSON = fmap Tagged . parseJSON
+instance (ToJSON (Proxy x, y)) => ToJSON (Proxy x, Tagged r y) where
+    toJSON = toJSON . fmap untag
+instance (FromJSON (Proxy x, y)) => FromJSON (Proxy x, Tagged r y) where
+    parseJSON = fmap (fmap Tagged) . parseJSON
+
+instance ToJSON (Tagged '(r,a,ar,kr,dr) ar) => ToJSON (Tagged '(r,a,ar,kr,dr) [ar])
   where
     toJSON = toJSON . sequence
 instance ToJSON (Tagged '(r,a) ar) => ToJSON (Tagged '(r,a) [ar])
@@ -198,7 +250,7 @@ instance ToJSON (Tagged '(r,a) ar) => ToJSON (Tagged '(r,a) [ar])
 
 instance FromJSON (Tagged '(r,a) ar) => FromJSON (Tagged '(r,a) [ar])
   where
-    parseJSON v = fmap sequence (parseJSON v :: Parser [(Tagged '(r,a) ar)])
+    parseJSON v = fmap sequence (parseJSON v :: Parser [Tagged '(r,a) ar])
 
 instance ToJSON (Tagged '(r,a) [ar]) => ToJSON (Tagged '(r,a) (Maybe ar))
   where
@@ -214,10 +266,9 @@ instance FromJSON (Tagged '(r,a) ar) => FromJSON (Tagged '(r,a) (Maybe ar))
 -- | Does this type can have default (null) value.
 --   True for Maybe and [] but not for String.
 type family HasDef a :: Bool where
-    HasDef (Maybe a) = True
-    HasDef String = False
-    HasDef [a] = True
-    HasDef (a,b) = HasDef a && HasDef b
-    HasDef () = True
-    HasDef a = False
-
+    HasDef (Maybe a)    = 'True
+    HasDef String       = 'False
+    HasDef [a]          = 'True
+    HasDef (a,b)        = HasDef a && HasDef b
+    HasDef ()           = 'True
+    HasDef a            = 'False

@@ -1,33 +1,33 @@
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MagicHash                 #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE TypeOperators             #-}
 -- {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE FunctionalDependencies    #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE PolyKinds                 #-}
 module TL.Pers.DML where
 
-import GHC.Prim(Proxy#, proxy#)
-import Data.Proxy(Proxy(..))
-import Data.Text.Lazy(Text)
-import qualified Data.Text.Lazy as TL
-import Control.Monad.IO.Class(MonadIO)
-import Control.Monad.Trans.RWS(RWS(..), get, tell, put, runRWS)
-import Control.Monad.Catch(MonadCatch)
-import GHC.TypeLits(KnownSymbol, Symbol, symbolVal')
-import Data.Text.Format(format, Only(..))
-import Lens.Micro((^.))
-import GHC.Exts(Constraint)
+import           Control.Monad.Catch     (MonadCatch)
+import           Control.Monad.IO.Class  (MonadIO)
+import           Control.Monad.Trans.RWS (RWS, get, put, runRWS, tell)
+import           Data.Proxy              (Proxy (..))
+import           Data.Text.Format        (Only (..), format)
+import           Data.Text.Lazy          (Text)
+import qualified Data.Text.Lazy          as TL
+import           GHC.Exts                (Constraint)
+import           GHC.Prim                (Proxy#, proxy#)
+import           GHC.TypeLits            (KnownSymbol, Symbol, symbolVal')
+import           Lens.Micro              ((^.))
 
-import TL.Types
-import TL.Pers.DDL
+import           TL.Pers.DDL
+import           TL.Types
 
 type family IsAutoPK  (rep:: *) back kr :: Constraint
 type family IsAutoPKb (rep:: *) back kr :: Bool
@@ -73,7 +73,8 @@ class   ( TableLike a
     del ::  ( MonadIO m
             , MonadCatch m
             )
-            => Proxy '(rep,a) -> Cond rep back (RecordDef a) -> SessionMonad back m Int
+            => Proxy '(rep,a) -> Cond rep back (RecordDef a)
+                -> SessionMonad back m Int
     selProj ::  ( MonadIO m
                 , MonadCatch m
                 , ContainNames (RecordDef a) b
@@ -84,12 +85,24 @@ class   ( TableLike a
             -> SessionMonad back m [rr]
 
 -- | Select values by condition
+sel :: forall rep (a :: DataDef *) back ar kr dr (m :: * -> *) rr.
+    ( ContainNames (RecordDef a) (LFst (RecordDef a)), MonadCatch m
+    , MonadIO m, Names (LFst (RecordDef a))
+    , RowRepDDL rep back (ProjNames (RecordDef a) (LFst (RecordDef a))) rr
+    , DML rep back a ar kr dr
+    ) => Proxy '(rep, a) -> Cond rep back (RecordDef a)
+        -> SessionMonad back m [rr]
 sel (_::Proxy '(rep, a))
     = selProj (Proxy :: Proxy '(rep,a,LFst (RecordDef a)))
 
+upsert :: forall rep (a :: DataDef *) ar back kr dr (m :: * -> *).
+    ( Eq kr, MonadCatch m, MonadIO m
+    , RecLens rep (RecordDef a) (Key a) ar kr
+    , DML rep back a ar kr dr
+    ) => Proxy '(rep, a) -> [ar] -> SessionMonad back m ()
 upsert (p :: Proxy '(rep,a)) (xs::[ar]) = do
     res <- upd p xs
-    ins p $ filter (\x -> not $ (x ^. lensPk p) `elem` res) xs
+    ins p $ filter (\x -> (x ^. lensPk p) `notElem` res) xs
 
 insRecCmd :: (KnownSymbol t, Names (LFst r), DBOption back)
     => Proxy '(rep,back,t,r) -> Text
@@ -98,8 +111,7 @@ insRecCmd (_ :: Proxy '(rep,back,t,r))
         ( symbolVal' (proxy# :: Proxy# t)
         , TL.intercalate "," $ map TL.pack ns
         , TL.intercalate ","
-            $ zipWith (\n -> const $ paramName (proxy# :: Proxy# back) n)
-                        [1..] ns
+            $ zipWith (const . paramName (proxy# :: Proxy# back)) [1..] ns
         )
   where
     ns = names (proxy# :: Proxy# (LFst r))
@@ -130,7 +142,7 @@ updRecCmdPars
         )
     => Proxy '(rep,back,t) -> [s] -> (Text, [[FieldDB back]])
 updRecCmdPars (_ :: Proxy '(rep,back,t)) [] = mempty
-updRecCmdPars (proxy :: Proxy '(rep,back,t)) recs@(rec:_)
+updRecCmdPars (_ :: Proxy '(rep,back,t)) recs@(rc:_)
     =   ( format "UPDATE {} SET {} WHERE {}"
             ( symbolVal' (proxy# :: Proxy# (TabName t))
             , TL.intercalate ","
@@ -146,7 +158,7 @@ updRecCmdPars (proxy :: Proxy '(rep,back,t)) recs@(rec:_)
     (w,_,_) = runRWS (sqlWhere $ cond key) () (length ns + 1)
       where
         cond r = Equal (Proxy :: Proxy (KeyDef t)) r :: Cond rep back (RecordDef t)
-        key = rec ^. recLens (proxy#::Proxy# '(rep,RecordDef t,Key t))
+        key = rc ^. recLens (proxy#::Proxy# '(rep,RecordDef t,Key t))
     dataKey r
         = rowDb (proxy# :: Proxy# '(rep,back))
                 (Proxy :: Proxy (DataKey t))
@@ -159,18 +171,18 @@ data Cond (rep:: *) back (a :: [(Symbol,*)])
                     , ContainNames a b
                     )
                     => Equal (Proxy b) br
-    | forall s b br.    ( KnownSymbol s
-                        , RowRepDDL rep back '[s:::b] (Singl rep b)
-                        , Contains a '[s:::b]
-                        )
+    | forall s b.   ( KnownSymbol s
+                    , RowRepDDL rep back '[s:::b] (Singl rep b)
+                    , Contains a '[s:::b]
+                    )
                         => In (Proxy '(rep,back,s)) [b]
-    | forall b br.  ( HasDef br ~ True
+    | forall b br.  ( HasDef br ~ 'True
                     , Rep rep (ProjNames a b) br
                     , Names b
                     , ContainNames a b
                     )
                     => Null (Proxy b) -- | All fields in subrecord is null
-    | forall b br.  ( HasDef br ~ True
+    | forall b br.  ( HasDef br ~ 'True
                     , Rep rep (ProjNames a b) br
                     , Names b
                     , ContainNames a b
@@ -201,30 +213,29 @@ sqlWhere :: (DBOption back, Single rep)
 sqlWhere (x :: Cond rep back a) = case x of
     CondTrue        -> return "1=1"
     Equal pb b      -> rel pb b "="
-    In (ps :: Proxy '(rep,back,s)) (bs :: [b]) ->
-        fmap  ( format "{} IN ({})"
-              . ((,) $ symbolVal' (proxy# :: Proxy# s))
-              . (TL.intercalate ", ")
-              )
-            $ mapM (\b -> do
-                    num <- get
-                    tell $ rowDb (proxy# :: Proxy# '(rep,back))
-                                (Proxy :: Proxy '[s:::b])
-                                (single (proxy# :: Proxy# rep) b)
-                    put $ num + 1
-                    return $ paramName (proxy# :: Proxy# back) num
-                ) bs
-    Null pb         -> isNull pb ""
-    NotNull pb      -> isNull pb "NOT"
-    Great pb b      -> rel pb b ">"
-    Least pb b      -> rel pb b "<"
-    And cs          -> ao cs " AND "
-    Or cs           -> ao cs " OR "
-    Not c           -> fmap (format "NOT ({})" . Only) $ sqlWhere c
+    In (_ :: Proxy '(rep,back,s)) (bs :: [b]) ->
+          format "{} IN ({})"
+        . ((,) $ symbolVal' (proxy# :: Proxy# s))
+        . TL.intercalate ", "
+        <$> mapM (\b -> do
+                num <- get
+                tell $ rowDb (proxy# :: Proxy# '(rep,back))
+                            (Proxy :: Proxy '[s:::b])
+                            (single (proxy# :: Proxy# rep) b)
+                put $ num + 1
+                return $ paramName (proxy# :: Proxy# back) num
+            ) bs
+    Null pb    -> isNull pb ""
+    NotNull pb -> isNull pb "NOT"
+    Great pb b -> rel pb b ">"
+    Least pb b -> rel pb b "<"
+    And cs     -> ao cs " AND "
+    Or cs      -> ao cs " OR "
+    Not c      -> format "NOT ({})" . Only <$> sqlWhere c
   where
     rel :: (Names b, RowRepDDL rep back (ProjNames a b) br)
          => Proxy b -> br -> Text -> RWS () [FieldDB back] Int Text
-    rel (pb :: Proxy b) vb op = do
+    rel (_ :: Proxy b) vb op = do
         let bns = names (proxy# :: Proxy# b)
         num <- get
         tell $ rowDb (proxy# :: Proxy# '(rep,back))
@@ -240,8 +251,8 @@ sqlWhere (x :: Cond rep back a) = case x of
         $ TL.intercalate " AND "
         $ map (\n -> format "{} IS {} NULL" (n,t))
         $ names (proxy# :: Proxy# b)
-    ao cs t = fmap (TL.intercalate t . map (format "({})" . Only))
-            $ mapM sqlWhere cs
+    ao cs t = TL.intercalate t . map (format "({})" . Only)
+            <$> mapM sqlWhere cs
 
 -- | Convert Condition to pair: "Where-text" and "list of query-parameters".
 getSqlWhere ::  ( DBOption back
@@ -258,7 +269,7 @@ selRecCmdPars ::    ( KnownSymbol t
                     => Proxy '(rep,t,a)
                     -> Cond rep back r
                     -> (Text,[FieldDB back])
-selRecCmdPars (p::Proxy '(rep,t,a)) c =
+selRecCmdPars (_::Proxy '(rep,t,a)) c =
     ( format "SELECT {} FROM {} WHERE {}"
         ( TL.intercalate "," $ map TL.pack ns
         , symbolVal' (proxy# :: Proxy# t)

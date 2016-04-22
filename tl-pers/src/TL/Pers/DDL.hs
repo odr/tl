@@ -1,43 +1,37 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE MagicHash              #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE PolyKinds              #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module TL.Pers.DDL where
 
-import Data.Proxy(Proxy(..))
-import GHC.Prim(Proxy#, proxy#)
-import GHC.TypeLits(Symbol(..), KnownSymbol, symbolVal', SomeSymbol(..))
-import Data.Type.Bool(type (||), If)
-import Data.Typeable(Typeable(..))
-import Data.Default(Default(..))
-import Data.Text.Lazy(Text)
-import qualified Data.Text.Lazy as TL
-import Data.Text.Format(format)
-import Control.Monad.IO.Class(MonadIO)
-import Control.Monad.Trans.Reader(ReaderT)
-import Control.Monad.Catch
-import Data.Type.Equality((:~:)(..), castWith)
-import Lens.Micro(Lens', (^.))
-import Lens.Micro.Type(Getting)
-import GHC.Exts(Constraint)
-import Data.Tagged
+import           Control.Monad.Catch
+import           Control.Monad.IO.Class     (MonadIO)
+import           Control.Monad.Trans.Reader (ReaderT)
+import           Data.Proxy                 (Proxy (..))
+import           Data.Tagged
+import           Data.Text.Format           (format)
+import           Data.Text.Lazy             (Text)
+import qualified Data.Text.Lazy             as TL
+import           GHC.Exts                   (Constraint)
+import           GHC.Prim                   (Proxy#, proxy#)
+import           GHC.TypeLits               (KnownSymbol, SomeSymbol (..),
+                                             Symbol, symbolVal')
+import           Lens.Micro                 ((^.))
 
-import TL.Types
-import TL.Plain(Plain)
+import           TL.Plain                   (Plain)
+import           TL.Types
 
 data RefType = Parent   -- ^ reference to parent data. Delete @Cascade@
              | Ref      -- ^ reference to master data.
@@ -45,21 +39,21 @@ data RefType = Parent   -- ^ reference to parent data. Delete @Cascade@
 
 class GetRefType (r::RefType) where
     getRefType :: Proxy# (r :: RefType) -> RefType
-instance GetRefType Parent  where getRefType _ = Parent
-instance GetRefType Ref     where getRefType _ = Ref
+instance GetRefType 'Parent  where getRefType _ = Parent
+instance GetRefType 'Ref     where getRefType _ = Ref
 
 data DataDef k
-    = TableDef  { name  :: Symbol
-                , rec   :: [(Symbol,k)]
-                , pk    :: [Symbol]
-                , uk    :: [[Symbol]]
-                , fk    :: [([(Symbol,Symbol)],(Symbol,RefType))]
+    = TableDef  { name :: Symbol
+                , rec  :: [(Symbol,k)]
+                , pk   :: [Symbol]
+                , uk   :: [[Symbol]]
+                , fk   :: [([(Symbol,Symbol)],(Symbol,RefType))]
                 }
 
-instance (ToPairs '(rep, r) v) => ToPairs '(rep, TableDef n r p u f) v
+instance (ToPairs '(rep, r) v) => ToPairs '(rep, 'TableDef n r p u f) v
   where
     toPairs = toPairs
-            . (retag :: Tagged '(rep, TableDef n r p u f) v
+            . (retag :: Tagged '(rep, 'TableDef n r p u f) v
                      -> Tagged '(rep, r) v
               )
 
@@ -86,14 +80,18 @@ type family RecordDefs (as::[k]) :: [[(Symbol,*)]] where
     RecordDefs (x ': xs) = RecordDef x ': RecordDefs xs
 
 
-instance TableLike  (TableDef n rec pk uk fk :: DataDef *) where
-    type TabName    (TableDef n rec pk uk fk) = n
-    type RecordDef  (TableDef n rec pk uk fk) = rec
-    type KeyDef     (TableDef n rec pk uk fk) = pk
-    type UniqDef    (TableDef n rec pk uk fk) = uk
-    type FKDef      (TableDef n rec pk uk fk) = fk
+instance TableLike  ('TableDef n rec pk uk fk :: DataDef *) where
+    type TabName    ('TableDef n rec pk uk fk) = n
+    type RecordDef  ('TableDef n rec pk uk fk) = rec
+    type KeyDef     ('TableDef n rec pk uk fk) = pk
+    type UniqDef    ('TableDef n rec pk uk fk) = uk
+    type FKDef      ('TableDef n rec pk uk fk) = fk
 
 type SessionMonad b m = ReaderT (Proxy b, Conn b) m
+
+type RepRecord r a  = Rep r (RecordDef a)
+type RepKey    r a  = Rep r (Key a)
+type RepData   r a  = Rep r (DataRecord a)
 
 -- | Options for backend
 class DBOption back where
@@ -165,8 +163,8 @@ instance    ( FieldDDL b v
   where
     toRowDb prb _ (v,vs) = (toDb (proxy# :: Proxy# b) v :)
                          . toRowDb prb (Proxy :: Proxy nvs) vs
-    fromRowDb prb (_ :: Proxy ((n ::: v) ': nvs)) fs
-        = case fs of
+    fromRowDb prb (_ :: Proxy ((n ::: v) ': nvs)) fs0
+        = case fs0 of
             []      -> Left $ symbols (proxy# :: Proxy# (n ': LFst nvs))
             (f:fs)  -> case fromRowDb prb (Proxy :: Proxy nvs) fs of
                 Left ss -> either (Left . (:ss)) (\_ -> Left ss) $ rh f
@@ -181,8 +179,17 @@ rowDb prb pa v = toRowDb prb pa v []
 
 -- lensPk ::(Functor f, RecLens rep (RecordDef a) (Key a) br ar)
 --         => Proxy ('(rep,a)) -> (ar -> f ar) -> br -> f br
+lensPk :: forall rep (a :: k) br ar (f :: * -> *).
+    ( Functor f
+    , RecLens rep (RecordDef a) (ProjNames (RecordDef a) (KeyDef a)) br ar
+    ) => Proxy '(rep, a) -> (ar -> f ar) -> br -> f br
 lensPk (_::Proxy '(rep,a))
     = recLens (proxy#::Proxy#  '( rep, RecordDef a, Key a ))
+
+lensData :: forall rep (a :: k) br ar (f :: * -> *).
+    ( Functor f
+    , RecLens rep (RecordDef a) (MinusNames (RecordDef a) (KeyDef a)) br ar
+    ) => Proxy '(rep, a) -> (ar -> f ar) -> br -> f br
 lensData (_::Proxy '(rep,a))
     = recLens (proxy#::Proxy#  '( rep, RecordDef a, DataRecord a ))
 
@@ -190,19 +197,19 @@ recDbPk ::  ( RecLens rep (RecordDef a) (Key a) s ar
             , RowRepDDL rep back (Key a) ar
             )
     => Proxy '(rep, back, a) -> s -> [FieldDB back]
-recDbPk (_::Proxy '(rep,back,a)) rec
+recDbPk (_::Proxy '(rep,back,a)) r
     = rowDb (proxy# :: Proxy# '(rep,back))
             (Proxy :: Proxy (Key a))
-            (rec ^. lensPk (Proxy :: Proxy '(rep,a)))
+            (r ^. lensPk (Proxy :: Proxy '(rep,a)))
 
 recDbData   ::  ( RecLens rep (RecordDef a) (DataRecord a) s ar
                 , RowRepDDL rep back (DataRecord a) ar
                 )
     => Proxy '(rep, back, a) -> s -> [FieldDB back]
-recDbData (_::Proxy '(rep,back,a)) rec
+recDbData (_::Proxy '(rep,back,a)) r
     = rowDb (proxy# :: Proxy# '(rep,back))
             (Proxy :: Proxy (DataRecord a))
-            (rec ^. lensData (Proxy :: Proxy '(rep,a)))
+            (r ^. lensData (Proxy :: Proxy '(rep,a)))
 
 class FromFKDef (x :: [([(Symbol,Symbol)],(Symbol,RefType))]) where
     fromFKDef :: Proxy# x -> [([(String,String)], (String,RefType))]
@@ -220,4 +227,3 @@ instance (Names2 as, KnownSymbol a, FromFKDef xs
 type family CheckFK (a :: [(k,k2)]) (b :: [([(k,k3)],k4)]) :: Constraint where
     CheckFK a '[] = ()
     CheckFK a ('(bs,b) ': cs) = (ContainsFst a bs, CheckFK a cs)
-

@@ -1,8 +1,8 @@
-name:                tl-form
+name:                tl-servant
 version:             0.1.0.0
 synopsis:            Initial project template from stack
 description:         Please see README.md
-homepage:            http://github.com/odr/tl#readme
+homepage:            https://github.com/odr/tl-servant#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Dmitry Olshansky
@@ -15,44 +15,43 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     TL.Form.Types
-                        , TL.Form.Simple
+  exposed-modules:     TL.Servant.Types
+                    , TL.Servant.SimpleHtml
   build-depends:       base >= 4.7 && < 5
-                        , lucid
-                        , text
-                        , tagged
-                        , ghc-prim
-                        , transformers
-                        , tl-base
-                        -- , safe
-                        , containers
-                        , bytestring
-
+                      , servant-server
+                      , servant-lucid
+                      , servant-docs
+                      , servant-jquery
+                      , lucid
+                      , tagged
+                      , aeson
+                      , bytestring
+                      , text
+                      , ghc-prim
+                      , either
+                      , http-media
+                      , tl-base
+                      , tl-pers
+                      , tl-form
   default-language:    Haskell2010
 
--- executable tl-exe
+-- executable tl-servant-exe
 --   hs-source-dirs:      app
 --   main-is:             Main.hs
 --   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
 --   build-depends:       base
---                      , tl
+--                      , tl-servant
 --   default-language:    Haskell2010
-
-test-suite tl-form-test
+--
+test-suite tl-servant-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  other-modules:       TL.Form.SimpleSpec
   build-depends:       base
-                     , tl-form
-                     , hspec
-                     , tagged
-                     , ghc-prim
-                     , lucid
-                     , text
+                     , tl-servant
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
 source-repository head
   type:     git
-  location: https://github.com/odr/tl
+  location: https://github.com/odr/tl-servant

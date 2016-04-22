@@ -1,32 +1,33 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 module TL.Plain where
 
-import Control.Monad(mzero)
-import Data.Tagged
-import Data.Proxy(Proxy(..))
-import Data.Aeson(ToJSON(..),FromJSON(..),Value(..)
-                ,fromJSON, Result(..), object, (.:))
-import qualified Data.Text as T
+import           Control.Monad       (mzero)
+import           Data.Aeson          (FromJSON (..), ToJSON (..), Value (..),
+                                      (.:))
 import qualified Data.HashMap.Strict as HM
-import GHC.TypeLits -- (Symbol, KnownSymbol, symbolVal', SomeSymbol(..), Nat)
-import GHC.Prim(Proxy#, proxy#)
-import Lens.Micro(Lens', (^.), (.~), (&), lens)
+import           Data.Proxy          (Proxy (..))
+import           Data.Tagged
+import qualified Data.Text           as T
+import           GHC.Prim            (Proxy#, proxy#)
+import           GHC.TypeLits
+import           Lens.Micro          (lens, (&), (.~), (^.))
 
-import TL.Types
+import           TL.Types
 
 -- | Type to define simple record representation as tuple (a,).(b,).(c,)....(z,) $ ()
 data Plain
-proxyPlain = Proxy :: Proxy Plain
+proxyPlain :: Proxy Plain
+proxyPlain = Proxy
 
 type instance VRec Plain '[]              = ()
 type instance VRec Plain ('(a,b) ': xs)   = (b, VRec Plain xs)
@@ -64,22 +65,20 @@ instance    ( RecLens Plain bs '[a1] xs (y1,())
         get = (\(a,_) b -> (a, b))
             <$> (^. recLens (proxy# :: Proxy# '(Plain,bs,'[a1])))
             <*> (^. recLens (proxy# :: Proxy# '(Plain,bs,(a2 ': as))))
-        set = (\x (v1,v2) -> x
-                & recLens (proxy# :: Proxy# '(Plain,bs,'[a1])) .~ (v1,())
+        set x  (v1,v2)
+            = x & recLens (proxy# :: Proxy# '(Plain,bs,'[a1])) .~ (v1,())
                 & recLens (proxy# :: Proxy# '(Plain,bs,(a2 ': as))) .~ v2
-            )
 
 instance (Rep Plain (a ': as) (x,xs), Rep Plain '[a] (x,()))
-    => RecLensB True Plain (a ': as) '[a] (x,xs) (x,())
+    => RecLensB 'True Plain (a ': as) '[a] (x,xs) (x,())
   where
-    recLensB _ _ f (x,y) = fmap ((,y).fst) $ f (x,())
+    recLensB _ _ f (x,y) = ((,y).fst) <$> f (x,())
 
 instance (Rep Plain (b ': bs) (x,xs), RecLens Plain bs '[a] xs (y,()))
-    => RecLensB False Plain (b ': bs) '[a] (x,xs) (y,())
+    => RecLensB 'False Plain (b ': bs) '[a] (x,xs) (y,())
   where
     recLensB _ _ f (x,y)
-        = fmap (x,)
-        $ recLens (proxy# :: Proxy# '(Plain,bs,'[a])) f y
+        = (x,) <$> recLens (proxy# :: Proxy# '(Plain,bs,'[a])) f y
 
 ------------------ JSON -------------------------
 
@@ -109,6 +108,7 @@ instance    ( KnownSymbol n
             )
             => FromJSON (Tagged '(Plain, ((n ::: v) ': nvs)) (v,vr))
   where
+    -- parseJSON :: Value -> Parser (Tagged '(Plain, ((n ::: v) ': nvs)) (v,vr))
     parseJSON (Object hm) = do
         (Tagged rest :: Tagged '(Plain, nvs) vr) <- parseJSON (Object hm')
 
@@ -117,10 +117,11 @@ instance    ( KnownSymbol n
       where
         name = T.pack (symbolVal' (proxy# :: Proxy# n))
         hm' = HM.delete name hm
+    parseJSON _ = mzero
 
 -- (x,y) чтобы не перекрываться с [x]
-instance ToPairs '(Plain, a) (x,y) => ToJSON (Tagged '(Plain,a) (x,y)) where
-    toJSON = object . flip toPairs []
+-- instance ToPairs '(Plain, a) (x,y) => ToJSON (Tagged '(Plain,a) (x,y)) where
+--     toJSON = object . flip toPairs []
 instance  ToJSON (Tagged '(Plain,a) (x,y))
         => ToJSON (Tagged '(Plain,b,a,ar,kr,dr) (x,y)) where
     toJSON = toJSON

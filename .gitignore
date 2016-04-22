@@ -1,3 +1,5 @@
 .stack-work
 doc
+bin
 test.html
+*.db
